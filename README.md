@@ -1,5 +1,77 @@
-# chess_ex_ui
+# ChessEx UI
 
-ChessExUI is an Elixir Phoenix project offering a web interface to the ChessEx Chess engine.
+A Phoenix LiveView web interface for playing chess against the pure Elixir
+[ChessEx](https://github.com/svenvc/chess_ex) engine.
 
-This project depends on the ChessEx pure Elixir project (available under either https://git.stfx.eu/sven/chess_ex or https://github.com/svenvc/chess_ex) that should be checked out next to this project (i.e. from this directory, the path to it should be `../chess_ex`).
+## Requirements
+
+- Elixir `~> 1.15`
+- The `chess_ex` repository checked out next to this project, so the path
+  dependency `../chess_ex` resolves
+
+## Setup
+
+```sh
+mix setup
+mix phx.server
+```
+
+Open <http://localhost:4000/game> for the board. The landing page is `/`.
+
+## Playing
+
+- You play White by default. The engine answers with `Chess.Engine`’s default
+  1-ply `:best` move.
+- Click a piece and then a highlighted legal target. Clicking another own
+  piece changes the selection; clicking the selected square clears it.
+- The selected square, legal destinations, capture targets and the last move
+  are highlighted.
+- File labels are below the board and rank labels to the left. Both reverse
+  when you switch sides.
+- **New game** resets the board. **Switch sides** starts a new game as the other
+  color; if the engine is now White, it opens immediately. **Resign** ends the
+  current game.
+- The side panel contains the `Chess.Narrator` status, recent activity and a
+  PGN-style move list.
+- The page is sized to fit one viewport without page scrolling; the side panels
+  scroll internally when needed.
+
+Current first-pass limits:
+
+- Promotion automatically promotes to a queen.
+- Game state lives in the LiveView; refreshing or reconnecting starts over.
+- There is no clock, settings UI or history navigation.
+- The engine answers synchronously with the default 1-ply strategy.
+
+## Project structure
+
+| Path | Purpose |
+| --- | --- |
+| `lib/chess_ex_ui_web/live/game_live.ex` | `/game` LiveView: state, clicks, engine turns, status and notation |
+| `lib/chess_ex_ui_web/components/chess_board.ex` | Presentational board, squares, coordinates and highlights |
+| `lib/chess_ex_ui_web/chess_assets.ex` | Board/piece asset lookup and theme seam |
+| `lib/chess_ex_ui_web/components/layouts.ex` | App shell; `bare` omits the header for the game page |
+| `assets/css/app.css` | Tailwind entry point and the board-surface rule |
+| `priv/static/images/boards/blue.png` | Vendored lichess board texture |
+| `priv/static/images/pieces/gioco/` | Vendored lichess Gioco piece set |
+
+## Development
+
+```sh
+mix precommit    # compile with warnings as errors, format, run tests
+mix assets.build # rebuild Tailwind and esbuild
+```
+
+The LiveView tests cover board rendering, coordinate orientation, selection and
+legal targets, legal move application, engine reply, illegal clicks, switching
+sides, starting over and resigning.
+
+See [TODO.md](TODO.md) for known first-pass limits and planned work.
+
+## Assets and licensing
+
+The board and pieces are vendored from
+[lichess-org/lila](https://github.com/lichess-org/lila) and are not hotlinked.
+See [ASSETS.md](ASSETS.md) for the pinned commit, authors and licenses. The
+project code is MIT licensed; the assets keep their own licenses. The Gioco
+piece set is CC BY-NC-SA 4.0, so it is not suitable for commercial use as-is.

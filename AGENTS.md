@@ -1,6 +1,54 @@
-This is a web application written using the Phoenix web framework.
+# ChessEx UI
 
-## Project guidelines
+A Phoenix LiveView web interface for playing chess against the pure Elixir
+[ChessEx](https://github.com/svenvc/chess_ex) engine. The application is
+database-free: game state lives in the LiveView process.
+
+## Project structure
+
+- `lib/chess_ex_ui_web/live/game_live.ex` — the `/game` LiveView: game state, click handling, engine turns, status and notation.
+- `lib/chess_ex_ui_web/components/chess_board.ex` — presentational board component; sends a single `square_click` event.
+- `lib/chess_ex_ui_web/chess_assets.ex` — board/piece asset lookup. Change the module attributes here to swap themes.
+- `lib/chess_ex_ui_web/components/layouts.ex` — application shell. The `bare` option renders only page content for the full-screen game.
+- `priv/static/images/boards/blue.png` and `priv/static/images/pieces/gioco/*.svg` — vendored lichess assets.
+- `ASSETS.md` — provenance and licenses of the vendored assets.
+- `TODO.md` — completed first-pass work and the follow-up backlog.
+
+## Running and testing
+
+- The `chess_ex` dependency is a path dependency to `../chess_ex`; check it out next to this repository.
+- `mix setup` — fetch dependencies and install/build assets.
+- `mix phx.server` — start the development server; the board is at `/game`.
+- `mix assets.build` — rebuild Tailwind and esbuild after class or CSS changes.
+- `mix precommit` — compile with warnings as errors, format, and run tests. Run it before finishing a change.
+
+## Chess UI rules
+
+- Derive selectable destinations from `Chess.Rules.legal_moves/1`; do not duplicate move generation in the UI.
+- Before applying a human move, check it with `Chess.Rules.legal_move?/2` and apply it with `Chess.Rules.apply/2`. Engine moves come from `Chess.Engine`.
+- `Chess.Game.moves` is newest first. Use `Chess.Game.moves_in_order/1` for display and `Chess.Game.replay/1` + `Chess.SAN.to_san/2` for notation.
+- Use `Chess.Narrator` for the status line and the last-move description rather than duplicating its wording.
+- Pawn promotion is auto-queen in the current UI. A promotion picker is planned.
+- Game state is intentionally in the LiveView only; a refresh starts a new game. Do not add persistence without a decision.
+- The engine uses the default 1-ply `Chess.Engine.play/1` (`:best`) and answers synchronously. Keep engine work fast; asynchronous thinking is on the TODO.
+
+## Game page layout
+
+- `/game` uses `<Layouts.app flash={@flash} bare>`: no app header, branding or theme toggle.
+- The page must fit in one viewport without page scrolling. The board is capped by both width and `100dvh`; the side panels scroll internally if needed.
+- Keep the turn indicator next to the New game / Switch sides / Resign controls.
+- File labels are below the board and rank labels to the left; both reverse with orientation.
+- Use `ChessUIWeb.ChessBoard` for board markup; do not hand-roll a second board.
+- The board uses the lichess `blue` texture and `gioco` pieces. Alternatives are selected through `ChessUIWeb.ChessAssets`.
+
+## Assets and licensing
+
+- Vendor lichess assets; do not hotlink them.
+- `public/images/board/blue.png` is AGPLv3+ (lila authors and pirouetti).
+- `public/piece/gioco/*.svg` are CC BY-NC-SA 4.0 (sadsnake1).
+- Add attribution to `ASSETS.md` when adding a board or piece set.
+
+## General project guidelines
 
 - Use `mix precommit` alias when you are done with all changes and fix any pending issues
 - Use the already included and available `:req` (`Req`) library for HTTP requests, **avoid** `:httpoison`, `:tesla`, and `:httpc`. Req is included by default and is the preferred HTTP client for Phoenix apps

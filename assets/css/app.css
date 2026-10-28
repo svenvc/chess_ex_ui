@@ -102,4 +102,13 @@
 /* Make LiveView wrapper divs transparent for layout */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
+/* The board surface is a lichess board texture, selected in ChessUIWeb.ChessAssets. */
+.chess-board {
+  background-color: #dee3e6;
+  background-image: var(--board-image);
+  background-position: center;
+  background-size: 100% 100%;
+  image-rendering: auto;
+}
+
 /* This file is for your main application CSS */

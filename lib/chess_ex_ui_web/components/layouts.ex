@@ -31,42 +31,45 @@ defmodule ChessUIWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
 
+  attr :bare, :boolean,
+    default: false,
+    doc: "render only the page content, without the application header and chrome"
+
   slot :inner_block, required: true
 
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
-      <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
-        </a>
-      </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
-          </li>
-          <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
-          </li>
-          <li>
-            <.theme_toggle />
-          </li>
-          <li>
-            <a href="https://hexdocs.pm/phoenix/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
-            </a>
-          </li>
-        </ul>
-      </div>
-    </header>
+    <%= if @bare do %>
+      <main class="h-dvh overflow-hidden p-3 sm:p-4">
+        <div class="mx-auto h-full max-w-[1400px]">
+          {render_slot(@inner_block)}
+        </div>
+      </main>
+    <% else %>
+      <header class="flex items-center justify-between border-b border-base-300 bg-base-100/80 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
+        <div class="flex-1">
+          <.link navigate={~p"/"} class="flex w-fit items-center gap-2">
+            <img src={~p"/images/logo.svg"} width="32" alt="" />
+            <span class="text-sm font-semibold tracking-tight text-base-content">ChessEx</span>
+          </.link>
+        </div>
+        <nav class="flex items-center gap-3" aria-label="Main">
+          <.link
+            navigate={~p"/game"}
+            class="rounded-lg bg-base-content px-3.5 py-2 text-sm font-semibold text-base-100 transition hover:opacity-80"
+          >
+            Play
+          </.link>
+          <.theme_toggle />
+        </nav>
+      </header>
 
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
-        {render_slot(@inner_block)}
-      </div>
-    </main>
+      <main class="px-4 py-20 sm:px-6 lg:px-8">
+        <div class="mx-auto max-w-2xl space-y-4">
+          {render_slot(@inner_block)}
+        </div>
+      </main>
+    <% end %>
 
     <.flash_group flash={@flash} />
     """
