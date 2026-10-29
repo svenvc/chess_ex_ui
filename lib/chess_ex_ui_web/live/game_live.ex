@@ -308,12 +308,7 @@ defmodule ChessUIWeb.GameLive do
       <div class="flex h-full flex-col gap-3">
         <header class="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <p class="flex min-w-0 items-baseline gap-2">
-            <span class="text-lg font-semibold tracking-tight text-base-content">Play chess</span>
-            <span class="truncate text-sm text-base-content/60">
-              You play {color_name(@player_color)} · engine plays {color_name(
-                Color.opponent(@player_color)
-              )}
-            </span>
+            <span class="text-lg font-semibold tracking-tight text-base-content">Chess Ex Web UI</span>
           </p>
 
           <div class="flex flex-wrap items-center gap-2">
