@@ -6,6 +6,7 @@ Working notes for the ChessEx UI. See `README.md` for how to run it and
 ## Done
 
 - [x] Add the `/game` LiveView with a `Chess.Game` in progress.
+- [x] Serve the game at `/` as the default route, keeping `/game` as an alias.
 - [x] Render an 8×8 board with the `blue` lichess 2D texture and `gioco` pieces.
 - [x] Render file labels below the board and rank labels on the left, flipping
       with orientation.

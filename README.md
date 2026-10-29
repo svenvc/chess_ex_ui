@@ -14,7 +14,8 @@ mix setup
 mix phx.server
 ```
 
-Open <http://localhost:4000/game> for the board. The landing page is `/`.
+Open <http://localhost:4000/> for the board. `/game` serves the same page as an
+alias.
 
 ## Playing
 
@@ -45,7 +46,7 @@ Current first-pass limits:
 
 | Path | Purpose |
 | --- | --- |
-| `lib/chess_ex_ui_web/live/game_live.ex` | `/game` LiveView: state, clicks, engine turns, status and notation |
+| `lib/chess_ex_ui_web/live/game_live.ex` | `/` LiveView (also `/game`): state, clicks, engine turns, status and notation |
 | `lib/chess_ex_ui/engine.ex` | Engine strength and book options; test seam for the engine module |
 | `lib/chess_ex_ui_web/components/chess_board.ex` | Presentational board, squares, coordinates and highlights |
 | `lib/chess_ex_ui_web/chess_assets.ex` | Board/piece asset lookup and theme seam |

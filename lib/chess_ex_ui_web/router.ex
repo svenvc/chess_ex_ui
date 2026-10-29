@@ -17,7 +17,7 @@ defmodule ChessUIWeb.Router do
   scope "/", ChessUIWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", GameLive
     live "/game", GameLive
   end
 

@@ -6,7 +6,7 @@ database-free: game state lives in the LiveView process.
 
 ## Project structure
 
-- `lib/chess_ex_ui_web/live/game_live.ex` — the `/game` LiveView: game state, click handling, engine turns, status and notation.
+- `lib/chess_ex_ui_web/live/game_live.ex` — the `/` LiveView (also served at `/game`): game state, click handling, engine turns, status and notation.
 - `lib/chess_ex_ui_web/components/chess_board.ex` — presentational board component; sends a single `square_click` event.
 - `lib/chess_ex_ui_web/chess_assets.ex` — board/piece asset lookup. Change the module attributes here to swap themes.
 - `lib/chess_ex_ui_web/components/layouts.ex` — application shell. The `bare` option renders only page content for the full-screen game.
@@ -18,7 +18,7 @@ database-free: game state lives in the LiveView process.
 
 - The `chess_ex` dependency is a path dependency to `../chess_ex`; check it out next to this repository.
 - `mix setup` — fetch dependencies and install/build assets.
-- `mix phx.server` — start the development server; the board is at `/game`.
+- `mix phx.server` — start the development server; the board is at `/` (`/game` is an alias).
 - `mix assets.build` — rebuild Tailwind and esbuild after class or CSS changes.
 - `mix precommit` — compile with warnings as errors, format, and run tests. Run it before finishing a change.
 
@@ -37,7 +37,7 @@ database-free: game state lives in the LiveView process.
 
 ## Game page layout
 
-- `/game` uses `<Layouts.app flash={@flash} bare>`: no app header, branding or theme toggle.
+- `/` uses `<Layouts.app flash={@flash} bare>`: no app header, branding or theme toggle.
 - The page must fit in one viewport without page scrolling. The board is capped by both width and `100dvh`; the side panels scroll internally if needed.
 - Keep the turn indicator next to the New game / Switch sides / Resign controls.
 - File labels are below the board and rank labels to the left; both reverse with orientation.

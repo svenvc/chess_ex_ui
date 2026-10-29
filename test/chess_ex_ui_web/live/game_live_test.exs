@@ -3,6 +3,13 @@ defmodule ChessUIWeb.GameLiveTest do
 
   import Phoenix.LiveViewTest
 
+  test "serves the game at the root path", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    assert has_element?(view, "#board")
+    assert has_element?(view, "#new-game")
+  end
+
   test "renders the board, coordinates and empty panels", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/game")
 
