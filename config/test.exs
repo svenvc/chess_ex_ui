@@ -10,6 +10,11 @@ config :chess_ex_ui, ChessUIWeb.Endpoint,
 # Print only warnings and errors during test
 config :logger, level: :warning
 
+# A fast engine keeps the suite quick; the search itself is tested in chess_ex.
+config :chess_ex_ui,
+  engine_options: [strategy: :best, book: false],
+  engine_min_think_ms: 0
+
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
 

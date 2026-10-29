@@ -14,6 +14,7 @@ defmodule ChessUIWeb.GameLiveTest do
     assert has_element?(view, "#status", "White to move")
     assert has_element?(view, "#moves", "No moves yet")
     assert has_element?(view, "#result", "*")
+    assert has_element?(view, "#turn-indicator[data-thinking='false']", "White to move")
     refute has_element?(view, "#move-1")
 
     document = LazyHTML.from_fragment(render(view))
@@ -49,6 +50,7 @@ defmodule ChessUIWeb.GameLiveTest do
 
     view |> element("#square-e2") |> render_click()
     view |> element("#square-e4") |> render_click()
+    render_async(view)
 
     assert has_element?(view, "#square-e4 img[src$='wP.svg']")
     refute has_element?(view, "#square-e2 img")
@@ -80,6 +82,7 @@ defmodule ChessUIWeb.GameLiveTest do
     {:ok, view, _html} = live(conn, ~p"/game")
 
     view |> element("#switch-sides") |> render_click()
+    render_async(view)
 
     assert has_element?(view, "#board[data-orientation='black']")
     assert has_element?(view, "#status", "Black to move")
@@ -92,6 +95,7 @@ defmodule ChessUIWeb.GameLiveTest do
 
     view |> element("#square-e2") |> render_click()
     view |> element("#square-e4") |> render_click()
+    render_async(view)
     assert has_element?(view, "#move-1-white", "e4")
 
     view |> element("#new-game") |> render_click()
@@ -115,5 +119,81 @@ defmodule ChessUIWeb.GameLiveTest do
 
     refute has_element?(view, "#square-e2[data-selected='true']")
     assert has_element?(view, "#messages", "game is over")
+  end
+
+  describe "engine thinking" do
+    setup do
+      install_test_engine()
+      :ok
+    end
+
+    test "locks the board and shows the thinking state", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/game")
+
+      view |> element("#square-e2") |> render_click()
+      view |> element("#square-e4") |> render_click()
+
+      assert has_element?(view, "#turn-indicator[data-thinking='true']", "Engine thinking")
+      assert has_element?(view, "#board[data-busy='true'][aria-busy='true']")
+
+      view |> element("#square-g1") |> render_click()
+
+      refute has_element?(view, "#square-g1[data-selected='true']")
+
+      render_async(view, 1_000)
+
+      assert has_element?(view, "#turn-indicator[data-thinking='false']")
+      assert has_element?(view, "#board[data-busy='false'][aria-busy='false']")
+      assert has_element?(view, "#status", "White to move")
+      assert has_element?(view, "[data-ply='2']")
+    end
+
+    test "a new game during the engine turn discards the stale move", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/game")
+
+      view |> element("#square-e2") |> render_click()
+      view |> element("#square-e4") |> render_click()
+      assert has_element?(view, "#turn-indicator[data-thinking='true']")
+
+      view |> element("#new-game") |> render_click()
+
+      assert has_element?(view, "#moves", "No moves yet")
+      assert has_element?(view, "#turn-indicator[data-thinking='false']")
+
+      # Wait past the point where the cancelled search would have answered.
+      Process.sleep(400)
+
+      assert has_element?(view, "#moves", "No moves yet")
+      refute has_element?(view, "[data-ply='2']")
+      assert has_element?(view, "#turn-indicator[data-thinking='false']")
+    end
+
+    test "resigning during the engine turn ends the game", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/game")
+
+      view |> element("#square-e2") |> render_click()
+      view |> element("#square-e4") |> render_click()
+      assert has_element?(view, "#turn-indicator[data-thinking='true']")
+
+      view |> element("#resign") |> render_click()
+
+      assert has_element?(view, "#status", "You resigned")
+      assert has_element?(view, "#turn-indicator[data-thinking='false']", "Game over")
+      assert has_element?(view, "#result", "0-1")
+      assert has_element?(view, "#board[data-busy='false']")
+    end
+  end
+
+  defp install_test_engine do
+    previous = Application.get_env(:chess_ex_ui, :engine)
+    Application.put_env(:chess_ex_ui, :engine, ChessUI.TestEngine)
+
+    on_exit(fn ->
+      if previous do
+        Application.put_env(:chess_ex_ui, :engine, previous)
+      else
+        Application.delete_env(:chess_ex_ui, :engine)
+      end
+    end)
   end
 end

@@ -3,7 +3,9 @@ defmodule ChessUIWeb.GameLive do
   A game of chess against the ChessEx engine.
 
   The player picks a piece and then a legal destination, the engine answers
-  for the other side, and the status panel narrates what happened. The game
+  for the other side, and the status panel narrates what happened. The engine
+  searches in a background task while the turn indicator shows that it is
+  thinking, and the board ignores clicks until the move arrives. The game
   state lives in this LiveView; there is no clock, persistence or history
   navigation.
   """
@@ -12,9 +14,9 @@ defmodule ChessUIWeb.GameLive do
 
   import ChessUIWeb.ChessBoard, only: [board: 1]
 
-  alias Chess.{Board, Color, Engine, Game, Move, Narrator, Piece, Position, Rules, SAN}
+  alias Chess.{Board, Color, Game, Move, Narrator, Piece, Position, Rules, SAN}
+  alias ChessUI.Engine
 
-  @engine_options [strategy: :best]
   @max_messages 8
 
   @impl true
@@ -22,7 +24,46 @@ defmodule ChessUIWeb.GameLive do
     {:ok,
      socket
      |> assign(:page_title, "Play")
+     |> assign(thinking: false, turn: 0)
      |> new_game(:white)}
+  end
+
+  @impl true
+  def handle_async(:engine, result, socket) do
+    case result do
+      {:ok, {turn, {:ok, next_game, move}}} when turn == socket.assigns.turn ->
+        san = SAN.to_san(move, socket.assigns.game)
+
+        {:noreply,
+         socket
+         |> assign(thinking: false)
+         |> put_game(next_game)
+         |> clear_selection()
+         |> add_message("Engine played #{san}.")
+         |> maybe_engine_move()}
+
+      {:ok, {_turn, {:ok, _next_game, _move}}} ->
+        {:noreply, socket}
+
+      {:ok, {turn, {:error, reason}}} when turn == socket.assigns.turn ->
+        {:noreply,
+         socket
+         |> assign(thinking: false)
+         |> add_message("The engine could not move (#{reason}).")}
+
+      {:ok, {_turn, {:error, _reason}}} ->
+        {:noreply, socket}
+
+      # A cancelled search: the game already moved on and cleared `thinking`.
+      {:exit, {:shutdown, _reason}} ->
+        {:noreply, assign(socket, thinking: false)}
+
+      {:exit, _reason} ->
+        {:noreply,
+         socket
+         |> assign(thinking: false)
+         |> add_message("The engine failed to move.")}
+    end
   end
 
   @impl true
@@ -43,6 +84,7 @@ defmodule ChessUIWeb.GameLive do
     if resigned_by == nil and not Game.over?(game) do
       socket =
         socket
+        |> cancel_engine()
         |> assign(resigned_by: player_color)
         |> clear_selection()
         |> add_message("You resigned. #{color_name(Color.opponent(player_color))} wins.")
@@ -61,6 +103,7 @@ defmodule ChessUIWeb.GameLive do
 
   defp new_game(socket, player_color) do
     socket
+    |> cancel_engine()
     |> assign(
       player_color: player_color,
       orientation: player_color,
@@ -84,26 +127,51 @@ defmodule ChessUIWeb.GameLive do
     )
   end
 
+  # Search off the LiveView process so the page stays responsive while the
+  # engine thinks. `:turn` invalidates a result that belongs to a game which has
+  # since been replaced or resigned.
   defp maybe_engine_move(socket) do
     %{game: game, player_color: player_color, resigned_by: resigned_by} = socket.assigns
 
-    if resigned_by == nil and not Game.over?(game) and game.side_to_move != player_color do
-      case Engine.play(game, @engine_options) do
-        {:ok, next_game, move} ->
-          san = SAN.to_san(move, game)
+    cond do
+      socket.assigns.thinking ->
+        socket
 
-          socket
-          |> put_game(next_game)
-          |> clear_selection()
-          |> add_message("Engine played #{san}.")
-          |> maybe_engine_move()
+      resigned_by != nil or Game.over?(game) ->
+        socket
 
-        {:error, _reason} ->
-          socket
-      end
-    else
-      socket
+      game.side_to_move == player_color ->
+        socket
+
+      # `start_async/3` is a no-op while disconnected. Mount starts as White,
+      # so there is nothing to start before the socket connects.
+      not connected?(socket) ->
+        socket
+
+      true ->
+        start_engine_move(socket, game)
     end
+  end
+
+  defp start_engine_move(socket, game) do
+    turn = socket.assigns.turn + 1
+    min_think_ms = Application.get_env(:chess_ex_ui, :engine_min_think_ms, 400)
+
+    socket
+    |> assign(thinking: true, turn: turn)
+    |> start_async(:engine, fn ->
+      started_at = System.monotonic_time(:millisecond)
+      result = Engine.play(game)
+      remaining = min_think_ms - (System.monotonic_time(:millisecond) - started_at)
+      if remaining > 0, do: Process.sleep(remaining)
+      {turn, result}
+    end)
+  end
+
+  defp cancel_engine(socket) do
+    socket
+    |> cancel_async(:engine, {:shutdown, :replaced})
+    |> assign(thinking: false, turn: socket.assigns.turn + 1)
   end
 
   ## Clicks
@@ -112,6 +180,9 @@ defmodule ChessUIWeb.GameLive do
     %{game: game, player_color: player_color, resigned_by: resigned_by} = socket.assigns
 
     cond do
+      socket.assigns.thinking ->
+        socket
+
       resigned_by != nil or Game.over?(game) ->
         add_message(socket, "The game is over. Start a new game.")
 
@@ -234,7 +305,9 @@ defmodule ChessUIWeb.GameLive do
     end
   end
 
-  defp turn_label(game, _player_color, resigned_by) do
+  defp turn_label(_game, _player_color, _resigned_by, true), do: "Engine thinking"
+
+  defp turn_label(game, _player_color, resigned_by, false) do
     cond do
       resigned_by != nil or Game.over?(game) -> "Game over"
       true -> "#{color_name(game.side_to_move)} to move"
@@ -318,7 +391,7 @@ defmodule ChessUIWeb.GameLive do
               id="new-game"
               type="button"
               phx-click="new_game"
-              class="inline-flex items-center gap-1.5 rounded-lg bg-base-content px-3 py-1.5 text-sm font-semibold text-base-100 shadow-sm transition hover:-translate-y-0.5 hover:opacity-80 hover:shadow-md"
+              class="inline-flex items-center gap-1.5 rounded-lg bg-base-content px-3 py-1.5 text-sm font-semibold text-base-100 shadow-sm transition hover:bg-base-content/85 hover:shadow-md"
             >
               <.icon name="hero-arrow-path" class="size-3.5" /> New game
             </button>
@@ -327,7 +400,7 @@ defmodule ChessUIWeb.GameLive do
               id="switch-sides"
               type="button"
               phx-click="switch_sides"
-              class="inline-flex items-center gap-1.5 rounded-lg border border-base-300 bg-base-100/70 px-3 py-1.5 text-sm font-semibold text-base-content shadow-sm transition hover:-translate-y-0.5 hover:bg-base-200 hover:shadow-md"
+              class="inline-flex items-center gap-1.5 rounded-lg border border-base-300 bg-base-100/70 px-3 py-1.5 text-sm font-semibold text-base-content shadow-sm transition hover:bg-base-200 hover:shadow-md"
             >
               <.icon name="hero-arrows-right-left" class="size-3.5" /> Switch sides
             </button>
@@ -342,7 +415,7 @@ defmodule ChessUIWeb.GameLive do
                 if(game_over?(@game, @resigned_by),
                   do: "cursor-not-allowed border-base-300 text-base-content/30 opacity-50",
                   else:
-                    "border-error/30 bg-base-100/70 text-error shadow-sm hover:-translate-y-0.5 hover:bg-error/10 hover:shadow-md"
+                    "border-error/30 bg-base-100/70 text-error shadow-sm hover:bg-error/10 hover:shadow-md"
                 )
               ]}
             >
@@ -351,19 +424,35 @@ defmodule ChessUIWeb.GameLive do
 
             <div
               id="turn-indicator"
+              role="status"
+              data-thinking={to_string(@thinking)}
               class={[
-                "inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
-                if(game_over?(@game, @resigned_by),
-                  do: "border-base-300 bg-base-200 text-base-content/50",
-                  else: "border-success/30 bg-success/10 text-success"
-                )
+                "inline-flex min-w-36 items-center justify-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
+                cond do
+                  game_over?(@game, @resigned_by) ->
+                    "border-base-300 bg-base-200 text-base-content/50"
+
+                  @thinking ->
+                    "border-warning/30 bg-warning/10 text-warning"
+
+                  true ->
+                    "border-success/30 bg-success/10 text-success"
+                end
               ]}
             >
-              <span class={[
-                "size-1.5 rounded-full",
-                if(game_over?(@game, @resigned_by), do: "bg-base-content/30", else: "bg-success")
-              ]} />
-              {turn_label(@game, @player_color, @resigned_by)}
+              <%= if @thinking do %>
+                <span class="flex items-end gap-0.5" aria-hidden="true">
+                  <span class="thinking-dot size-1 rounded-full bg-current" />
+                  <span class="thinking-dot size-1 rounded-full bg-current" />
+                  <span class="thinking-dot size-1 rounded-full bg-current" />
+                </span>
+              <% else %>
+                <span class={[
+                  "size-1.5 rounded-full",
+                  if(game_over?(@game, @resigned_by), do: "bg-base-content/30", else: "bg-success")
+                ]} />
+              <% end %>
+              {turn_label(@game, @player_color, @resigned_by, @thinking)}
             </div>
           </div>
         </header>
@@ -375,7 +464,8 @@ defmodule ChessUIWeb.GameLive do
               orientation={@orientation}
               selected={@selected}
               targets={@targets}
-              disabled={game_over?(@game, @resigned_by)}
+              disabled={game_over?(@game, @resigned_by) or @thinking}
+              busy={@thinking}
             />
           </section>
 

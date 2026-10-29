@@ -26,13 +26,20 @@ Working notes for the ChessEx UI. See `README.md` for how to run it and
       layout.
 - [x] Add LiveView tests and board/asset unit tests.
 - [x] Document assets and licenses in `ASSETS.md`.
+- [x] Make engine strength configurable in `config.exs`: 4-ply `Chess.Search`
+      with the opening book, through `ChessUI.Engine`.
+- [x] Run engine moves asynchronously with a visible “thinking” state in the
+      turn indicator; the board is locked meanwhile.
+- [x] Cancel and ignore stale engine work after a new game, resign or side
+      switch.
 
 ## Next
 
 ### Gameplay
 
 - [ ] Replace auto-queen with a promotion picker (queen, rook, bishop, knight).
-- [ ] Highlight the king in check and the checkmating move/target.
+- [x] Highlight the king in check with a red glow on the board.
+- [ ] Highlight the checkmating move/target.
 - [ ] Show captured pieces and material balance.
 - [ ] Add drag-and-drop as an alternative to two clicks.
 - [ ] Add keyboard navigation and activation for board squares.
@@ -40,11 +47,8 @@ Working notes for the ChessEx UI. See `README.md` for how to run it and
 
 ### Engine
 
-- [ ] Make engine strength configurable: random, 1-ply best, search depth and
-      opening book.
-- [ ] Run engine moves asynchronously with a visible “thinking” state.
-- [ ] Ignore or cancel stale engine work after a new game, resign or side
-      switch.
+- [ ] Expose engine strength in the UI (random, 1-ply, search depth, book on/off)
+      instead of only in `config.exs`.
 - [ ] Decide whether to keep the in-process engine or drive the `chess_ex`
       UCI executable.
 - [ ] Add an option to play both sides locally (engine disabled).
@@ -76,8 +80,6 @@ Working notes for the ChessEx UI. See `README.md` for how to run it and
 - [ ] Add a test that plays a complete game to checkmate.
 - [ ] Add a test for playing as Black after the engine opens.
 - [ ] Add CI that runs `mix precommit` and `mix assets.build`.
-- [ ] Consider a small engine option config instead of the module attribute in
-      `GameLive`.
 
 ## First-pass constraints
 
@@ -86,6 +88,6 @@ These are deliberate for now, not bugs:
 - one page, no page scrolling
 - no clock/timer, settings or history navigation
 - game state in the LiveView only
-- default 1-ply synchronous engine move
+- engine strength fixed in `config.exs` (4-ply search + opening book)
 - auto-queen promotion
 - `blue` board + `gioco` pieces, with `ChessAssets` as the swap point

@@ -25,12 +25,15 @@ database-free: game state lives in the LiveView process.
 ## Chess UI rules
 
 - Derive selectable destinations from `Chess.Rules.legal_moves/1`; do not duplicate move generation in the UI.
-- Before applying a human move, check it with `Chess.Rules.legal_move?/2` and apply it with `Chess.Rules.apply/2`. Engine moves come from `Chess.Engine`.
+- Before applying a human move, check it with `Chess.Rules.legal_move?/2` and apply it with `Chess.Rules.apply/2`. Engine moves come from `ChessUI.Engine`.
+- Run engine searches with `start_async/3`, never in the LiveView process; cancel them with `cancel_async/3` on new game, side switch and resignation. The `:turn` token invalidates stale results.
+- While `thinking` is true the board rejects clicks; the turn indicator shows the thinking state.
 - `Chess.Game.moves` is newest first. Use `Chess.Game.moves_in_order/1` for display and `Chess.Game.replay/1` + `Chess.SAN.to_san/2` for notation.
 - Use `Chess.Narrator` for the status line and the last-move description rather than duplicating its wording.
 - Pawn promotion is auto-queen in the current UI. A promotion picker is planned.
 - Game state is intentionally in the LiveView only; a refresh starts a new game. Do not add persistence without a decision.
-- The engine uses the default 1-ply `Chess.Engine.play/1` (`:best`) and answers synchronously. Keep engine work fast; asynchronous thinking is on the TODO.
+- The engine plays a 4-ply `Chess.Search` with the opening book, configured in
+  `config/config.exs` through `ChessUI.Engine`.
 
 ## Game page layout
 
@@ -39,6 +42,7 @@ database-free: game state lives in the LiveView process.
 - Keep the turn indicator next to the New game / Switch sides / Resign controls.
 - File labels are below the board and rank labels to the left; both reverse with orientation.
 - Use `ChessUIWeb.ChessBoard` for board markup; do not hand-roll a second board.
+- The board marks the king in check with a red glow, derived from `Chess.Rules.in_check?/1` and `Chess.Board.king/2`; never re-implement attack detection.
 - The board uses the lichess `blue` texture and `gioco` pieces. Alternatives are selected through `ChessUIWeb.ChessAssets`.
 
 ## Assets and licensing

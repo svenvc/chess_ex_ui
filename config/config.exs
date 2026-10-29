@@ -11,6 +11,12 @@ config :chess_ex_ui,
   namespace: ChessUI,
   generators: [timestamp_type: :utc_datetime]
 
+# The engine plays a full 4-ply search and uses the opening book when the
+# position is known. See `ChessUI.Engine`.
+config :chess_ex_ui,
+  engine_options: [strategy: :search, depth: 4, book: true],
+  engine_min_think_ms: 400
+
 # Configures the endpoint
 config :chess_ex_ui, ChessUIWeb.Endpoint,
   url: [host: "localhost"],

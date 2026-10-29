@@ -18,12 +18,13 @@ Open <http://localhost:4000/game> for the board. The landing page is `/`.
 
 ## Playing
 
-- You play White by default. The engine answers with `Chess.Engine`’s default
-  1-ply `:best` move.
+- You play White by default. The engine answers with a 4-ply search and uses the
+  opening book when the position is known; it thinks in the background while
+  the turn indicator shows the progress.
 - Click a piece and then a highlighted legal target. Clicking another own
   piece changes the selection; clicking the selected square clears it.
 - The selected square, legal destinations, capture targets and the last move
-  are highlighted.
+  are highlighted. A king in check glows red.
 - File labels are below the board and rank labels to the left. Both reverse
   when you switch sides.
 - **New game** resets the board. **Switch sides** starts a new game as the other
@@ -39,13 +40,13 @@ Current first-pass limits:
 - Promotion automatically promotes to a queen.
 - Game state lives in the LiveView; refreshing or reconnecting starts over.
 - There is no clock, settings UI or history navigation.
-- The engine answers synchronously with the default 1-ply strategy.
 
 ## Project structure
 
 | Path | Purpose |
 | --- | --- |
 | `lib/chess_ex_ui_web/live/game_live.ex` | `/game` LiveView: state, clicks, engine turns, status and notation |
+| `lib/chess_ex_ui/engine.ex` | Engine strength and book options; test seam for the engine module |
 | `lib/chess_ex_ui_web/components/chess_board.ex` | Presentational board, squares, coordinates and highlights |
 | `lib/chess_ex_ui_web/chess_assets.ex` | Board/piece asset lookup and theme seam |
 | `lib/chess_ex_ui_web/components/layouts.ex` | App shell; `bare` omits the header for the game page |
@@ -61,8 +62,8 @@ mix assets.build # rebuild Tailwind and esbuild
 ```
 
 The LiveView tests cover board rendering, coordinate orientation, selection and
-legal targets, legal move application, engine reply, illegal clicks, switching
-sides, starting over and resigning.
+legal targets, legal move application, the asynchronous engine reply and thinking
+state, illegal clicks, switching sides, starting over and resigning.
 
 See [TODO.md](TODO.md) for known first-pass limits and planned work.
 

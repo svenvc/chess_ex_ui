@@ -3,12 +3,13 @@ defmodule ChessUIWeb.ChessBoard do
   The visual chess board: squares, coordinates, pieces and move highlights.
 
   The component is presentational. It sends a single `square_click` event with
-  the square name and lets the LiveView decide what the click means.
+  the square name and lets the LiveView decide what the click means. It derives
+  the last-move highlights and the king in check from the game it is given.
   """
 
   use ChessUIWeb, :html
 
-  alias Chess.{Board, Castling, Color, Game, Move, Piece, Position}
+  alias Chess.{Board, Castling, Color, Game, Move, Piece, Position, Rules}
   alias ChessUIWeb.ChessAssets
 
   attr :game, :any, required: true
@@ -16,12 +17,14 @@ defmodule ChessUIWeb.ChessBoard do
   attr :selected, :atom, default: nil
   attr :targets, :any, default: nil
   attr :disabled, :boolean, default: false
+  attr :busy, :boolean, default: false
 
   def board(assigns) do
     assigns =
       assigns
       |> assign(:squares, squares(assigns.orientation))
       |> assign(:last_move, last_move(assigns.game))
+      |> assign(:check_square, check_square(assigns.game))
       |> assign(:targets, assigns.targets || MapSet.new())
 
     ~H"""
@@ -48,7 +51,9 @@ defmodule ChessUIWeb.ChessBoard do
           id="board"
           role="group"
           aria-label={"Chess board, #{@orientation} at the bottom"}
+          aria-busy={to_string(@busy)}
           data-orientation={@orientation}
+          data-busy={to_string(@busy)}
           class="chess-board grid aspect-square overflow-hidden rounded-lg shadow-xl ring-1 ring-black/10"
           style={"--board-image: url('#{ChessAssets.board_image()}'); grid-template-columns: repeat(8, minmax(0, 1fr)); grid-template-rows: repeat(8, minmax(0, 1fr));"}
         >
@@ -58,11 +63,12 @@ defmodule ChessUIWeb.ChessBoard do
             id={"square-#{square}"}
             phx-click="square_click"
             phx-value-square={square}
-            aria-label={square_label(@game, square)}
+            aria-label={square_label(@game, square, @check_square == square)}
             aria-pressed={to_string(@selected == square)}
             data-selected={to_string(@selected == square)}
             data-target={to_string(MapSet.member?(@targets, square))}
             data-last-move={to_string(MapSet.member?(@last_move, square))}
+            data-check={to_string(@check_square == square)}
             class={[
               "group relative flex items-center justify-center focus:outline-none focus-visible:z-20 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600",
               if(@disabled, do: "cursor-default", else: "cursor-pointer")
@@ -75,6 +81,10 @@ defmodule ChessUIWeb.ChessBoard do
             <span
               :if={@selected == square}
               class="pointer-events-none absolute inset-0 bg-amber-400/65 shadow-[inset_0_0_0_3px_rgba(180,83,9,0.65)]"
+            />
+            <span
+              :if={@check_square == square}
+              class="square-in-check pointer-events-none absolute inset-0"
             />
 
             <%= if MapSet.member?(@targets, square) do %>
@@ -136,6 +146,16 @@ defmodule ChessUIWeb.ChessBoard do
   def ranks(:white), do: Enum.reverse(Position.ranks())
   def ranks(:black), do: Position.ranks()
 
+  @doc """
+  Return the square of the king that is in check, or nil.
+
+  Only the side to move can be in check, so this is the king the board marks
+  in red.
+  """
+  def check_square(%Game{} = game) do
+    if Rules.in_check?(game), do: Board.king(game.board, game.side_to_move)
+  end
+
   # The squares of the last move: always the moving piece, plus both rooks of
   # a castle.
   defp last_move(%Game{moves: [move | _]} = game) do
@@ -159,10 +179,13 @@ defmodule ChessUIWeb.ChessBoard do
 
   defp last_move(_game), do: MapSet.new()
 
-  defp square_label(game, square) do
-    case Board.at(game.board, square) do
-      nil -> "#{square}, empty"
-      piece -> "#{square}, #{Piece.color(piece)} #{Piece.type(piece)}"
-    end
+  defp square_label(game, square, in_check?) do
+    label =
+      case Board.at(game.board, square) do
+        nil -> "#{square}, empty"
+        piece -> "#{square}, #{Piece.color(piece)} #{Piece.type(piece)}"
+      end
+
+    if in_check?, do: label <> ", in check", else: label
   end
 end
