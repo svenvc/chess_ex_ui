@@ -6,8 +6,6 @@ A Phoenix LiveView web interface for playing chess against the pure Elixir
 ## Requirements
 
 - Elixir `~> 1.15`
-- The `chess_ex` repository checked out next to this project, so the path
-  dependency `../chess_ex` resolves
 
 ## Setup
 
