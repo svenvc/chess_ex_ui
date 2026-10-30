@@ -68,6 +68,23 @@ defmodule ChessUIWeb.ChessBoardTest do
     assert checked_squares(Game.new()) == []
   end
 
+  test "a read-only board does not send square clicks" do
+    html =
+      render_component(&ChessBoard.board/1,
+        game: Game.new(),
+        orientation: :white,
+        selected: nil,
+        targets: nil,
+        disabled: true,
+        busy: false,
+        interactive: false
+      )
+
+    refute html =~ "phx-click=\"square_click\""
+    assert html =~ "disabled"
+    assert html =~ "aria-disabled=\"true\""
+  end
+
   defp checked_squares(game) do
     game
     |> render_board()

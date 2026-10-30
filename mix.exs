@@ -21,7 +21,7 @@ defmodule ChessUI.MixProject do
   def application do
     [
       mod: {ChessUI.Application, []},
-      extra_applications: [:logger, :runtime_tools]
+      extra_applications: [:logger, :crypto, :runtime_tools]
     ]
   end
 

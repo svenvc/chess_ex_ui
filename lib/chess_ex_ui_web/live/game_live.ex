@@ -16,7 +16,9 @@ defmodule ChessUIWeb.GameLive do
   import ChessUIWeb.ChessBoard, only: [board: 1]
 
   alias Chess.{Board, Color, Game, Move, Narrator, Piece, Position, Rules, SAN}
-  alias ChessUI.{Engine, SystemInfo}
+  alias ChessUI.{Engine, GameArchive, SystemInfo}
+
+  require Logger
 
   @max_messages 8
 
@@ -41,6 +43,7 @@ defmodule ChessUIWeb.GameLive do
          |> put_game(next_game)
          |> clear_selection()
          |> add_message("Engine played #{san}.")
+         |> maybe_record_game()
          |> maybe_engine_move()}
 
       {:ok, {_turn, {:ok, _next_game, _move}}} ->
@@ -89,6 +92,7 @@ defmodule ChessUIWeb.GameLive do
         |> assign(resigned_by: player_color)
         |> clear_selection()
         |> add_message("You resigned. #{color_name(Color.opponent(player_color))} wins.")
+        |> maybe_record_game()
 
       {:noreply, socket}
     else
@@ -119,7 +123,9 @@ defmodule ChessUIWeb.GameLive do
       selected: nil,
       targets: MapSet.new(),
       resigned_by: nil,
-      messages: []
+      messages: [],
+      started_at: DateTime.utc_now(),
+      recorded_id: nil
     )
     |> put_game(Game.new())
     |> add_message(
@@ -181,6 +187,41 @@ defmodule ChessUIWeb.GameLive do
     socket
     |> cancel_async(:engine, {:shutdown, :replaced})
     |> assign(thinking: false, turn: socket.assigns.turn + 1)
+  end
+
+  # A game is recorded once, when it has a result. New game, switch sides and
+  # closing the page are deliberate abandonments and never write a record.
+  defp maybe_record_game(%{assigns: %{recorded_id: id}} = socket) when id != nil, do: socket
+
+  defp maybe_record_game(socket) do
+    %{
+      game: game,
+      player_color: player_color,
+      resigned_by: resigned_by,
+      started_at: started_at
+    } = socket.assigns
+
+    if resigned_by != nil or Game.over?(game) do
+      metadata = %{
+        player_color: player_color,
+        resigned_by: resigned_by,
+        started_at: started_at,
+        ended_at: DateTime.utc_now()
+      }
+
+      case GameArchive.save(game, metadata) do
+        {:ok, id} ->
+          socket
+          |> assign(:recorded_id, id)
+          |> add_message("Game saved to history.")
+
+        {:error, reason} ->
+          Logger.error("Could not save the game: #{inspect(reason)}")
+          add_message(socket, "Could not save the game.")
+      end
+    else
+      socket
+    end
   end
 
   ## Clicks
@@ -245,6 +286,7 @@ defmodule ChessUIWeb.GameLive do
       |> put_game(next_game)
       |> clear_selection()
       |> add_message("You played #{san}.")
+      |> maybe_record_game()
       |> maybe_engine_move()
     else
       socket
@@ -439,6 +481,14 @@ defmodule ChessUIWeb.GameLive do
               <.icon name="hero-flag" class="size-3.5" /> Resign
             </button>
 
+            <.link
+              id="history-link"
+              navigate={~p"/history"}
+              class="inline-flex items-center gap-1.5 rounded-lg border border-base-300 bg-base-100/70 px-3 py-1.5 text-sm font-semibold text-base-content shadow-sm transition hover:bg-base-200 hover:shadow-md"
+            >
+              <.icon name="hero-trophy" class="size-3.5" /> History
+            </.link>
+
             <div
               id="turn-indicator"
               role="status"
@@ -507,6 +557,33 @@ defmodule ChessUIWeb.GameLive do
               >
                 {@last_move_summary}
               </p>
+
+              <div
+                :if={@recorded_id}
+                id="recorded-game"
+                class="mt-3 rounded-lg border border-success/30 bg-success/10 px-3 py-2"
+              >
+                <p class="flex items-center gap-1.5 text-xs font-semibold text-success">
+                  <.icon name="hero-check-circle" class="size-3.5" /> Saved to history
+                </p>
+                <div class="mt-2 flex flex-wrap gap-2 text-xs">
+                  <.link
+                    id="view-recorded-game"
+                    navigate={~p"/history/#{@recorded_id}"}
+                    class="inline-flex items-center gap-1 rounded-md border border-base-300 bg-base-100/70 px-2 py-1 font-semibold text-base-content shadow-sm transition hover:bg-base-200"
+                  >
+                    View game
+                  </.link>
+                  <.link
+                    id="download-pgn"
+                    href={~p"/history/#{@recorded_id}/download"}
+                    download
+                    class="inline-flex items-center gap-1 rounded-md border border-base-300 bg-base-100/70 px-2 py-1 font-semibold text-base-content shadow-sm transition hover:bg-base-200"
+                  >
+                    <.icon name="hero-arrow-down-tray" class="size-3" /> Download PGN
+                  </.link>
+                </div>
+              </div>
 
               <div class="mt-3 border-t border-base-300/60 pt-2">
                 <h3 class="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-base-content/50">

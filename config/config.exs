@@ -17,6 +17,10 @@ config :chess_ex_ui,
   engine_options: [strategy: :search, depth: 4, book: true],
   engine_min_think_ms: 400
 
+# Completed games are stored as PGN files. The directory is resolved at
+# runtime by `ChessUI.GameArchive` (default `var/games`) and can be overridden
+# with CHESS_EX_UI_GAMES_DIR; see config/runtime.exs.
+
 # Configures the endpoint
 config :chess_ex_ui, ChessUIWeb.Endpoint,
   url: [host: "localhost"],

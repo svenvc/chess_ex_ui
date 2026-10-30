@@ -35,13 +35,21 @@ defmodule ChessUIWeb.Layouts do
     default: false,
     doc: "render only the page content, without the application header and chrome"
 
+  attr :wide, :boolean,
+    default: false,
+    doc: "use the wider content column in the application shell"
+
+  attr :scroll, :boolean,
+    default: false,
+    doc: "let the bare layout grow and scroll with its content"
+
   slot :inner_block, required: true
 
   def app(assigns) do
     ~H"""
     <%= if @bare do %>
-      <main class="h-dvh overflow-hidden p-3 sm:p-4">
-        <div class="mx-auto h-full max-w-[1400px]">
+      <main class={["p-3 sm:p-4", if(@scroll, do: "min-h-dvh", else: "h-dvh overflow-hidden")]}>
+        <div class={["mx-auto", if(@scroll, do: "w-full", else: "h-full max-w-[1400px]")]}>
           {render_slot(@inner_block)}
         </div>
       </main>
@@ -60,12 +68,19 @@ defmodule ChessUIWeb.Layouts do
           >
             Play
           </.link>
+          <.link
+            id="nav-history"
+            navigate={~p"/history"}
+            class="rounded-lg px-3 py-2 text-sm font-semibold text-base-content/70 transition hover:bg-base-200 hover:text-base-content"
+          >
+            History
+          </.link>
           <.theme_toggle />
         </nav>
       </header>
 
-      <main class="px-4 py-20 sm:px-6 lg:px-8">
-        <div class="mx-auto max-w-2xl space-y-4">
+      <main class={["px-4 sm:px-6 lg:px-8", if(@wide, do: "py-10", else: "py-20")]}>
+        <div class={["mx-auto space-y-4", if(@wide, do: "max-w-5xl", else: "max-w-2xl")]}>
           {render_slot(@inner_block)}
         </div>
       </main>

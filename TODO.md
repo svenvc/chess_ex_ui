@@ -35,6 +35,11 @@ Working notes for the ChessEx UI. See `README.md` for how to run it and
       switch.
 - [x] Make the title open an About dialog with placeholder copy, links and the
       runtime details from `ChessUI.SystemInfo`.
+- [x] Save completed games automatically as PGN files with timestamps, player
+      colors, result, termination reason, engine options and a game id.
+- [x] Add a chronological `/history` hall of fame with win/draw statistics.
+- [x] Add a read-only `/history/:id` replay with move navigation.
+- [x] Add PGN download from the history, replay and game pages.
 
 ## Next
 
@@ -58,11 +63,13 @@ Working notes for the ChessEx UI. See `README.md` for how to run it and
 
 ### Game records and lifecycle
 
-- [ ] Persist a game across refreshes/reconnects.
-- [ ] Persist and list finished games.
-- [ ] Import/export PGN and FEN.
-- [ ] Add a copy-PGN action.
-- [ ] Browse backward/forward through the move history.
+- [ ] Persist an in-progress game across refreshes/reconnects.
+- [x] Persist and list finished games.
+- [ ] Import PGN/FEN; export FEN and add a copy-PGN action.
+- [x] Browse backward/forward through the move history of a completed game.
+- [ ] Add deletion, retention and pagination for a large game archive.
+- [ ] Add an index/cache if reading all PGN files becomes slow.
+- [ ] Refresh the history page live when another tab finishes a game.
 - [ ] Add a clock/timer.
 - [ ] Consider draw offers, rematches and result handling beyond resignation.
 
@@ -88,9 +95,11 @@ Working notes for the ChessEx UI. See `README.md` for how to run it and
 
 These are deliberate for now, not bugs:
 
-- one page, no page scrolling
-- no clock/timer, settings or history navigation
-- game state in the LiveView only
+- the game page is one viewport with no page scrolling; history pages scroll
+- no clock/timer or settings
+- in-progress game state in the LiveView only; completed games are PGN files
+- history reads the games directory on demand, without an index
+- resignation records the game; starting over or switching sides does not
 - engine strength fixed in `config.exs` (4-ply search + opening book)
 - auto-queen promotion
 - `blue` board + `gioco` pieces, with `ChessAssets` as the swap point

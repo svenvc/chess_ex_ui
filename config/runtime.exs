@@ -20,6 +20,10 @@ if System.get_env("PHX_SERVER") do
   config :chess_ex_ui, ChessUIWeb.Endpoint, server: true
 end
 
+if games_dir = System.get_env("CHESS_EX_UI_GAMES_DIR") do
+  config :chess_ex_ui, games_dir: Path.expand(games_dir)
+end
+
 if config_env() == :prod do
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you

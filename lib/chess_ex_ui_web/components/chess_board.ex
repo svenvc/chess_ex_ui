@@ -18,6 +18,7 @@ defmodule ChessUIWeb.ChessBoard do
   attr :targets, :any, default: nil
   attr :disabled, :boolean, default: false
   attr :busy, :boolean, default: false
+  attr :interactive, :boolean, default: true
 
   def board(assigns) do
     assigns =
@@ -61,8 +62,10 @@ defmodule ChessUIWeb.ChessBoard do
             :for={square <- @squares}
             type="button"
             id={"square-#{square}"}
-            phx-click="square_click"
+            phx-click={@interactive && "square_click"}
             phx-value-square={square}
+            disabled={not @interactive}
+            aria-disabled={to_string(not @interactive)}
             aria-label={square_label(@game, square, @check_square == square)}
             aria-pressed={to_string(@selected == square)}
             data-selected={to_string(@selected == square)}
@@ -71,7 +74,7 @@ defmodule ChessUIWeb.ChessBoard do
             data-check={to_string(@check_square == square)}
             class={[
               "group relative flex items-center justify-center focus:outline-none focus-visible:z-20 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600",
-              if(@disabled, do: "cursor-default", else: "cursor-pointer")
+              if(@disabled or not @interactive, do: "cursor-default", else: "cursor-pointer")
             ]}
           >
             <span

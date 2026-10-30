@@ -22,8 +22,28 @@ defmodule ChessUI.Engine do
     engine().play(game, options())
   end
 
-  defp engine, do: Application.get_env(:chess_ex_ui, :engine, Chess.Engine)
-
-  defp options,
+  @doc """
+  Return the options passed to the engine, as configured.
+  """
+  def options,
     do: Application.get_env(:chess_ex_ui, :engine_options, @default_options)
+
+  @doc """
+  Return a compact, human-readable description of the engine configuration.
+
+  The description is written into the PGN of a completed game, so a later
+  reader knows how strong the opponent was.
+  """
+  def description do
+    options()
+    |> Enum.map_join(", ", fn
+      {:strategy, strategy} -> "strategy #{strategy}"
+      {:depth, depth} -> "depth #{depth}"
+      {:book, true} -> "book on"
+      {:book, false} -> "book off"
+      {key, value} -> "#{key} #{value}"
+    end)
+  end
+
+  defp engine, do: Application.get_env(:chess_ex_ui, :engine, Chess.Engine)
 end

@@ -8,6 +8,7 @@ defmodule ChessUIWeb.GameLiveTest do
 
     assert has_element?(view, "#board")
     assert has_element?(view, "#new-game")
+    assert has_element?(view, "#history-link[href='/history']")
   end
 
   test "renders the board, coordinates and empty panels", %{conn: conn} do
@@ -250,6 +251,79 @@ defmodule ChessUIWeb.GameLiveTest do
       assert has_element?(view, "#turn-indicator[data-thinking='false']", "Game over")
       assert has_element?(view, "#result", "0-1")
       assert has_element?(view, "#board[data-busy='false']")
+    end
+  end
+
+  describe "game records" do
+    setup do
+      directory =
+        Path.join([
+          File.cwd!(),
+          "tmp",
+          "game_live_test",
+          Integer.to_string(System.unique_integer([:positive]))
+        ])
+
+      previous = Application.get_env(:chess_ex_ui, :games_dir)
+      Application.put_env(:chess_ex_ui, :games_dir, directory)
+      File.rm_rf!(directory)
+
+      on_exit(fn ->
+        if previous do
+          Application.put_env(:chess_ex_ui, :games_dir, previous)
+        else
+          Application.delete_env(:chess_ex_ui, :games_dir)
+        end
+
+        File.rm_rf(directory)
+      end)
+
+      {:ok, dir: directory}
+    end
+
+    test "records a resigned game and links to it", %{conn: conn, dir: dir} do
+      {:ok, view, _html} = live(conn, ~p"/game")
+
+      view |> element("#resign") |> render_click()
+
+      assert has_element?(view, "#recorded-game", "Saved to history")
+      assert has_element?(view, "#view-recorded-game")
+
+      assert [file] = recorded_files(dir)
+      id = Path.rootname(file)
+
+      assert has_element?(view, "#download-pgn[href='/history/#{id}/download']")
+      assert File.read!(Path.join(dir, file)) =~ ~s([TerminationReason "resignation"])
+    end
+
+    test "does not record an abandoned game", %{conn: conn, dir: dir} do
+      {:ok, view, _html} = live(conn, ~p"/game")
+
+      view |> element("#square-e2") |> render_click()
+      view |> element("#square-e4") |> render_click()
+      render_async(view)
+
+      view |> element("#new-game") |> render_click()
+      view |> element("#switch-sides") |> render_click()
+
+      assert recorded_files(dir) == []
+      refute has_element?(view, "#recorded-game")
+    end
+
+    test "does not record the same game twice", %{conn: conn, dir: dir} do
+      {:ok, view, _html} = live(conn, ~p"/game")
+
+      view |> element("#resign") |> render_click()
+      render_click(view, "resign", %{})
+
+      assert length(recorded_files(dir)) == 1
+    end
+  end
+
+  defp recorded_files(dir) do
+    case File.ls(dir) do
+      {:ok, files} -> Enum.filter(files, &String.ends_with?(&1, ".pgn"))
+      {:error, :enoent} -> []
     end
   end
 

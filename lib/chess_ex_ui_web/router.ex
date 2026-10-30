@@ -19,6 +19,9 @@ defmodule ChessUIWeb.Router do
 
     live "/", GameLive
     live "/game", GameLive
+    live "/history", HistoryLive
+    live "/history/:id", GameViewLive
+    get "/history/:id/download", GameDownloadController, :download
   end
 
   # Other scopes may use custom stacks.

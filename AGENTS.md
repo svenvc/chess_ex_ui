@@ -2,14 +2,20 @@
 
 A Phoenix LiveView web interface for playing chess against the pure Elixir
 [ChessEx](https://github.com/svenvc/chess_ex) engine. The application is
-database-free: game state lives in the LiveView process.
+database-free: in-progress game state lives in the LiveView process, and
+completed games are archived as PGN files.
 
 ## Project structure
 
-- `lib/chess_ex_ui_web/live/game_live.ex` — the `/` LiveView (also served at `/game`): game state, click handling, engine turns, status and notation.
-- `lib/chess_ex_ui_web/components/chess_board.ex` — presentational board component; sends a single `square_click` event.
+- `lib/chess_ex_ui_web/live/game_live.ex` — the `/` LiveView (also served at `/game`): game state, click handling, engine turns, status, notation and recording.
+- `lib/chess_ex_ui/game_archive.ex` — PGN storage: save, list, fetch and validate completed games.
+- `lib/chess_ex_ui_web/live/history_live.ex` — `/history`: chronological hall of fame and win/draw statistics.
+- `lib/chess_ex_ui_web/live/game_view_live.ex` — `/history/:id`: read-only PGN replay.
+- `lib/chess_ex_ui_web/controllers/game_download_controller.ex` — `/history/:id/download`: PGN download.
+- `lib/chess_ex_ui_web/game_format.ex` — shared date, duration and result formatting.
+- `lib/chess_ex_ui_web/components/chess_board.ex` — presentational board component; sends a single `square_click` event unless `interactive` is false.
 - `lib/chess_ex_ui_web/chess_assets.ex` — board/piece asset lookup. Change the module attributes here to swap themes.
-- `lib/chess_ex_ui_web/components/layouts.ex` — application shell. The `bare` option renders only page content for the full-screen game.
+- `lib/chess_ex_ui_web/components/layouts.ex` — application shell. The `bare` option renders only page content; `scroll` lets a bare page grow and scroll. Both the game and the history pages use bare; history also uses `scroll`.
 - `priv/static/images/boards/blue.png` and `priv/static/images/pieces/gioco/*.svg` — vendored lichess assets.
 - `ASSETS.md` — provenance and licenses of the vendored assets.
 - `TODO.md` — completed first-pass work and the follow-up backlog.
@@ -31,9 +37,20 @@ database-free: game state lives in the LiveView process.
 - `Chess.Game.moves` is newest first. Use `Chess.Game.moves_in_order/1` for display and `Chess.Game.replay/1` + `Chess.SAN.to_san/2` for notation.
 - Use `Chess.Narrator` for the status line and the last-move description rather than duplicating its wording.
 - Pawn promotion is auto-queen in the current UI. A promotion picker is planned.
-- Game state is intentionally in the LiveView only; a refresh starts a new game. Do not add persistence without a decision.
+- In-progress game state is intentionally in the LiveView only; a refresh starts a new game. Completed games are recorded; do not add in-progress persistence without a decision.
 - The engine plays a 4-ply `Chess.Search` with the opening book, configured in
   `config/config.exs` through `ChessUI.Engine`.
+
+## Game records
+
+- Record only games with a result: checkmate, stalemate, the automatic draw rules and resignation. New game, switching sides, closing the page and engine failures must not write a record.
+- `ChessUI.GameArchive` owns the PGN format and the games directory. Do not hand-roll a second PGN writer; use `Chess.PGN`.
+- One PGN per game, named `<uuid>.pgn`, written atomically through a temporary file. The `GameId` header holds the same id.
+- Include the seven tag roster plus start/end time, duration, termination reason, player colors, engine options, app version and final FEN. Never store visitor identity, IP addresses or session data.
+- The games directory is `:games_dir` (default `var/games`, override with `CHESS_EX_UI_GAMES_DIR`). History reads it on demand; there is no index or database.
+- Validate a game id with `ChessUI.GameArchive.id?/1` before building a path. Skip unreadable or corrupt PGNs in listings instead of crashing.
+- The game page links to the saved record after a result. `/history` is chronological, newest first; `/history/:id` replays a PGN read-only.
+- `ChessUIWeb.ChessBoard` takes `interactive={false}` on replay pages so it does not emit `square_click` events.
 
 ## Game page layout
 
