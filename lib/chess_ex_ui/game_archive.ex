@@ -61,8 +61,8 @@ defmodule ChessUI.GameArchive do
       temporary_path = path <> ".tmp"
 
       headers = %{
-        "Event" => "Chess Ex Web UI",
-        "Site" => "Chess Ex Web UI",
+        "Event" => "Chess Ex Online Game",
+        "Site" => "https://chess.stfx.eu",
         "Date" => Calendar.strftime(started_at, "%Y.%m.%d"),
         "Round" => "-",
         "White" => player_name(player_color, :white),
