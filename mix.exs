@@ -10,6 +10,7 @@ defmodule ChessUI.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
+      releases: releases(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader]
     ]
@@ -34,6 +35,29 @@ defmodule ChessUI.MixProject do
   # Specifies which paths to compile per environment.
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
+
+  # Bundles the full Erlang/OTP version (for example "29.1.2") into the
+  # release, because a release only ships the runtime, not the OTP_VERSION
+  # file that records it. `ChessUI.SystemInfo` reads it from the release root.
+  defp releases do
+    [
+      chess_ex_ui: [steps: [:assemble, &copy_otp_version/1]]
+    ]
+  end
+
+  defp copy_otp_version(release) do
+    otp_release = to_string(:erlang.system_info(:otp_release))
+    source = Path.join([:code.root_dir(), "releases", otp_release, "OTP_VERSION"])
+
+    with {:ok, contents} <- File.read(source) do
+      destination = Path.join(release.path, "OTP_VERSION")
+      temporary = destination <> ".tmp"
+      File.write!(temporary, contents)
+      File.rename!(temporary, destination)
+    end
+
+    release
+  end
 
   # Specifies your project dependencies.
   #

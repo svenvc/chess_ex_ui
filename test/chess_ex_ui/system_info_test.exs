@@ -40,11 +40,11 @@ defmodule ChessUI.SystemInfoTest do
              "#{Application.get_env(:chess_ex_ui, :config_env)}"
   end
 
-  test "the Erlang/OTP version is a version string or unavailable" do
-    case SystemInfo.erlang_otp_version() do
-      nil -> assert true
-      version -> assert version =~ ~r/^\d+/
-    end
+  test "the Erlang/OTP version is a version string" do
+    version = SystemInfo.erlang_otp_version()
+
+    assert is_binary(version)
+    assert version =~ ~r/^\d+(\.\d+)*$/
   end
 
   test "format_duration omits zero units" do

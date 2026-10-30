@@ -282,8 +282,12 @@ defmodule ChessUIWeb.GameViewLive do
                   </span>
                 </dd>
                 <dt class="text-base-content/50">Game ID</dt>
-                <dd id="game-id" class="break-all font-mono text-[0.7rem] text-base-content/60">
-                  {@record.id}
+                <dd
+                  id="game-id"
+                  title={@record.id}
+                  class="min-w-0 truncate text-base-content/80"
+                >
+                  {short_id(@record.id)}
                 </dd>
               </dl>
             </section>

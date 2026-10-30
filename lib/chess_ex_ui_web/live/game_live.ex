@@ -436,7 +436,7 @@ defmodule ChessUIWeb.GameLive do
             type="button"
             phx-click="open_about"
             title="About Chess Ex Web UI"
-            class="group inline-flex min-w-0 items-center gap-1.5 rounded-lg text-lg font-semibold tracking-tight text-base-content transition hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            class="group inline-flex min-w-0 items-center gap-1.5 rounded-lg text-xl font-bold tracking-tight text-base-content transition hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             Chess Ex Web UI
             <.icon

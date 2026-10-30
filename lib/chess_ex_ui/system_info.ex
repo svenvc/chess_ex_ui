@@ -62,31 +62,40 @@ defmodule ChessUI.SystemInfo do
   def elixir_version, do: System.version()
 
   @doc """
-  Returns the Erlang/OTP release version, or `nil` when it cannot be read.
+  Returns the Erlang/OTP release version, for example `"29.1.2"`.
 
-  The version is read from the `OTP_VERSION` file in the Erlang installation,
-  first from the release directory and then from the installation root. Some
-  installations ship neither file, in which case this function returns `nil`.
+  The full version is read from an `OTP_VERSION` file, which the release build
+  step in `mix.exs` copies from the build machine into the release root. When
+  running outside a release the file is read from the Erlang installation
+  instead. If no such file is available, the function falls back to the major
+  release reported by the runtime, for example `"29"`.
 
   ## Examples
 
       iex> ChessUI.SystemInfo.erlang_otp_version()
-      "27.2"
+      "29.1.2"
 
   """
   def erlang_otp_version do
     otp_release = to_string(:erlang.system_info(:otp_release))
 
-    [
-      Path.join([:code.root_dir(), "releases", otp_release, "OTP_VERSION"]),
-      Path.join([:code.root_dir(), "OTP_VERSION"])
-    ]
-    |> Enum.find_value(fn path ->
-      case File.read(path) do
-        {:ok, contents} -> String.trim(contents)
-        {:error, _} -> nil
-      end
-    end)
+    version =
+      [
+        Path.join(:code.root_dir(), "OTP_VERSION"),
+        Path.join([:code.root_dir(), "releases", otp_release, "OTP_VERSION"])
+      ]
+      |> Enum.find_value(&read_otp_version/1)
+
+    version || otp_release
+  end
+
+  defp read_otp_version(path) do
+    with {:ok, contents} <- File.read(path),
+         version when version != "" <- String.trim(contents) do
+      version
+    else
+      _ -> nil
+    end
   end
 
   @doc """

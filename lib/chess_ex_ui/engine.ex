@@ -37,7 +37,7 @@ defmodule ChessUI.Engine do
   def description do
     options()
     |> Enum.map_join(", ", fn
-      {:strategy, strategy} -> "strategy #{strategy}"
+      {:strategy, strategy} -> to_string(strategy)
       {:depth, depth} -> "depth #{depth}"
       {:book, true} -> "book on"
       {:book, false} -> "book off"

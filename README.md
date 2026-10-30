@@ -7,7 +7,7 @@ fame.
 
 ## Requirements
 
-- Elixir `~> 1.15`
+- Elixir `~> 1.18`
 
 ## Setup
 
