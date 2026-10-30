@@ -12,10 +12,11 @@ defmodule ChessUIWeb.GameLive do
 
   use ChessUIWeb, :live_view
 
+  import ChessUIWeb.AboutDialog, only: [about: 1]
   import ChessUIWeb.ChessBoard, only: [board: 1]
 
   alias Chess.{Board, Color, Game, Move, Narrator, Piece, Position, Rules, SAN}
-  alias ChessUI.Engine
+  alias ChessUI.{Engine, SystemInfo}
 
   @max_messages 8
 
@@ -24,7 +25,7 @@ defmodule ChessUIWeb.GameLive do
     {:ok,
      socket
      |> assign(:page_title, "Play")
-     |> assign(thinking: false, turn: 0)
+     |> assign(thinking: false, turn: 0, about_open: false, system_info: nil)
      |> new_game(:white)}
   end
 
@@ -97,6 +98,14 @@ defmodule ChessUIWeb.GameLive do
 
   def handle_event("switch_sides", _params, socket) do
     {:noreply, new_game(socket, Color.opponent(socket.assigns.player_color))}
+  end
+
+  def handle_event("open_about", _params, socket) do
+    {:noreply, assign(socket, about_open: true, system_info: SystemInfo.all())}
+  end
+
+  def handle_event("close_about", _params, socket) do
+    {:noreply, assign(socket, about_open: false)}
   end
 
   ## State
@@ -380,11 +389,19 @@ defmodule ChessUIWeb.GameLive do
     <Layouts.app flash={@flash} bare>
       <div class="flex h-full flex-col gap-3">
         <header class="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <p class="flex min-w-0 items-baseline gap-2">
-            <span class="text-lg font-semibold tracking-tight text-base-content">
-              Chess Ex Web UI
-            </span>
-          </p>
+          <button
+            id="about-title"
+            type="button"
+            phx-click="open_about"
+            title="About Chess Ex Web UI"
+            class="group inline-flex min-w-0 items-center gap-1.5 rounded-lg text-lg font-semibold tracking-tight text-base-content transition hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            Chess Ex Web UI
+            <.icon
+              name="hero-information-circle"
+              class="size-4 text-base-content/30 transition group-hover:text-primary/70"
+            />
+          </button>
 
           <div class="flex flex-wrap items-center gap-2">
             <button
@@ -568,6 +585,8 @@ defmodule ChessUIWeb.GameLive do
             </section>
           </aside>
         </div>
+
+        <.about :if={@about_open} info={@system_info} />
       </div>
     </Layouts.app>
     """

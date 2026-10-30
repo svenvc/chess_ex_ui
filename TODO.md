@@ -33,6 +33,8 @@ Working notes for the ChessEx UI. See `README.md` for how to run it and
       turn indicator; the board is locked meanwhile.
 - [x] Cancel and ignore stale engine work after a new game, resign or side
       switch.
+- [x] Make the title open an About dialog with placeholder copy, links and the
+      runtime details from `ChessUI.SystemInfo`.
 
 ## Next
 

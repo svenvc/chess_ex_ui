@@ -128,6 +128,68 @@ defmodule ChessUIWeb.GameLiveTest do
     assert has_element?(view, "#messages", "game is over")
   end
 
+  describe "about dialog" do
+    test "the title opens the dialog with the runtime details", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/game")
+
+      refute has_element?(view, "#about-dialog")
+
+      view |> element("#about-title") |> render_click()
+
+      assert has_element?(view, "#about-dialog")
+      assert has_element?(view, "#about-panel[role='dialog'][aria-modal='true']")
+      assert has_element?(view, "#about-heading", "About Chess Ex Web UI")
+      assert has_element?(view, "#about-panel a[href='https://git.stfx.eu/sven/chess_ex_ui']")
+      assert has_element?(view, "#about-panel a[href='https://git.stfx.eu/sven/chess_ex']")
+      assert has_element?(view, "#about-panel a[href='https://www.phoenixframework.org']")
+      assert has_element?(view, "#about-panel a[href='https://lichess.org']")
+
+      info = ChessUI.SystemInfo.all()
+
+      assert has_element?(view, "#system-info-application th", "Application")
+      assert has_element?(view, "#system-info-application_version", info.application_version)
+      assert has_element?(view, "#system-info-elixir_version", info.elixir_version)
+
+      assert has_element?(
+               view,
+               "#system-info-erlang_otp_version",
+               info.erlang_otp_version || "unknown"
+             )
+
+      document = LazyHTML.from_fragment(render(view))
+
+      assert document
+             |> LazyHTML.query("#system-info tbody tr")
+             |> Enum.count() == map_size(info)
+    end
+
+    test "the close and dismiss buttons hide the dialog", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/game")
+
+      view |> element("#about-title") |> render_click()
+      assert has_element?(view, "#about-dialog")
+
+      view |> element("#about-close") |> render_click()
+      refute has_element?(view, "#about-dialog")
+
+      view |> element("#about-title") |> render_click()
+      view |> element("#about-dismiss") |> render_click()
+      refute has_element?(view, "#about-dialog")
+    end
+
+    test "the backdrop and Escape close the dialog", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/game")
+
+      view |> element("#about-title") |> render_click()
+      view |> element("#about-backdrop") |> render_click()
+      refute has_element?(view, "#about-dialog")
+
+      view |> element("#about-title") |> render_click()
+      view |> element("#about-dialog") |> render_keydown(%{"key" => "Escape"})
+      refute has_element?(view, "#about-dialog")
+    end
+  end
+
   describe "engine thinking" do
     setup do
       install_test_engine()
