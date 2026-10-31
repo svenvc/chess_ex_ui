@@ -105,7 +105,7 @@ defmodule ChessUIWeb.HistoryLiveTest do
 
     conn = get(conn, ~p"/history/#{id}/download")
 
-    assert response(conn, 200) =~ "[Event \"Chess Ex Web UI\"]"
+    assert response(conn, 200) =~ "[Event \"Chess Ex Online Game\"]"
     assert get_resp_header(conn, "content-type") |> hd() =~ "application/x-chess-pgn"
     assert get_resp_header(conn, "content-disposition") |> hd() =~ "attachment"
     assert get_resp_header(conn, "content-disposition") |> hd() =~ "chess-ex-#{id}.pgn"

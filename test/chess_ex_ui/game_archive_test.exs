@@ -36,7 +36,7 @@ defmodule ChessUI.GameArchiveTest do
     assert File.exists?(path)
 
     text = File.read!(path)
-    assert text =~ ~s([Event "Chess Ex Web UI"])
+    assert text =~ ~s([Event "Chess Ex Online Game"])
     assert text =~ ~s([White "Visitor"])
     assert text =~ ~s([Black "ChessEx"])
     assert text =~ ~s([Result "0-1"])
