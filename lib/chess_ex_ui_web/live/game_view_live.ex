@@ -129,15 +129,12 @@ defmodule ChessUIWeb.GameViewLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} bare scroll>
-      <div class="mx-auto w-full max-w-[1400px] space-y-5">
-        <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div class="mx-auto w-full max-w-[1400px] space-y-3">
+        <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div class="space-y-2">
-            <h1 class="text-2xl font-semibold tracking-tight text-base-content">
+            <h1 class="text-xl font-bold tracking-tight text-base-content">
               Game {short_id(@record.id)}
             </h1>
-            <p class="text-sm text-base-content/60">
-              {datetime(@record.summary.started_at)} · {String.capitalize(@record.summary.termination)}
-            </p>
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
@@ -159,8 +156,8 @@ defmodule ChessUIWeb.GameViewLive do
           </div>
         </header>
 
-        <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <section class="flex min-w-0 flex-col rounded-xl border border-base-300 bg-base-100/90 p-3 shadow-sm backdrop-blur sm:p-4">
+        <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_22rem]">
+          <section class="flex min-w-0 flex-col">
             <.board
               game={@current_game}
               orientation={@orientation}

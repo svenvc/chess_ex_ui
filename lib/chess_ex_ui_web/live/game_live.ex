@@ -494,7 +494,7 @@ defmodule ChessUIWeb.GameLive do
               role="status"
               data-thinking={to_string(@thinking)}
               class={[
-                "inline-flex min-w-36 items-center justify-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
+                "inline-flex min-w-36 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium",
                 cond do
                   game_over?(@game, @resigned_by) ->
                     "border-base-300 bg-base-200 text-base-content/50"
