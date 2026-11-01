@@ -5,6 +5,31 @@ A Phoenix LiveView web interface for playing chess against the pure Elixir
 as PGN files and can be replayed or downloaded from a chronological hall of
 fame.
 
+A live demo can be found at [https://chess.stfx.eu](https://chess.stfx.eu)
+
+## Screenshots
+
+### A game in progess - dark system theme
+
+![A game in progess - dark system theme](screenshots/game-dark.png)
+
+### A game in progess - light system theme
+
+![A game in progess - light system theme](screenshots/game-light.png)
+
+### The history view - light system theme
+
+![The history view - light system theme](screenshots/history-light.png)
+
+### Replaying a game, showing end state - dark system theme
+
+![Replaying a game, showing end state - dark system theme](screenshots/replay-end-dark.png)
+
+### Replaying a game, mid game - light system theme
+
+![Replaying a game, mid game - light system theme](screenshots/replay-mid-light.png)
+
+
 ## Requirements
 
 - Elixir `~> 1.18`
