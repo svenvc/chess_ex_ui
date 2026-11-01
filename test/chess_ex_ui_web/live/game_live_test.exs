@@ -32,6 +32,28 @@ defmodule ChessUIWeb.GameLiveTest do
            |> Enum.count() == 64
   end
 
+  test "publishes the state attributes the black-box driver reads", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/game")
+
+    assert has_element?(
+             view,
+             "#board[data-fen='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1']" <>
+               "[data-side-to-move='white'][data-ply='0'][data-busy='false']"
+           )
+
+    assert has_element?(view, "#moves[data-ply='0']")
+    assert has_element?(view, "#status[data-game-over='false']")
+    assert has_element?(view, "#result[data-result='*']")
+    assert has_element?(view, "#turn-indicator[data-side-to-move='white'][data-thinking='false']")
+
+    view |> element("#square-e2") |> render_click()
+    view |> element("#square-e4") |> render_click()
+    render_async(view)
+
+    assert has_element?(view, "#board[data-ply='2'][data-side-to-move='white']")
+    assert has_element?(view, "#moves[data-ply='2']")
+  end
+
   test "selects a piece and shows its legal targets", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/game")
 
@@ -292,6 +314,9 @@ defmodule ChessUIWeb.GameLiveTest do
       assert [file] = recorded_files(dir)
       id = Path.rootname(file)
 
+      assert has_element?(view, "#recorded-game[data-game-id='#{id}']")
+      assert has_element?(view, "#status[data-game-over='true']")
+      assert has_element?(view, "#result[data-result='0-1']")
       assert has_element?(view, "#download-pgn[href='/history/#{id}/download']")
       assert File.read!(Path.join(dir, file)) =~ ~s([TerminationReason "resignation"])
     end

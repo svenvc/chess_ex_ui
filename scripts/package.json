@@ -1,0 +1,12 @@
+{
+  "name": "chess-ex-ui-scripts",
+  "private": true,
+  "description": "Out-of-band developer scripts. Not part of the release, not a build dependency.",
+  "type": "module",
+  "scripts": {
+    "play": "node play_remote.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.56.0"
+  }
+}

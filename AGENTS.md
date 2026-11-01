@@ -28,6 +28,36 @@ completed games are archived as PGN files.
 - `mix assets.build` — rebuild Tailwind and esbuild after class or CSS changes.
 - `mix precommit` — compile with warnings as errors, format, and run tests. Run it before finishing a change.
 
+## Scripted play (black-box driver)
+
+`scripts/play_remote.mjs` drives a running instance through a real browser: it
+clicks `#square-*` elements, reads the published state attributes and plays
+until the game has a result. It needs no application support beyond the markup
+below, and it never calls a private endpoint.
+
+The markup is a contract. Renaming or dropping these breaks the driver:
+
+| Selector                          | Meaning                                        |
+| --------------------------------- | ---------------------------------------------- |
+| `#square-a1` … `#square-h8`       | one button per square, `phx-value-square`      |
+| `#board[data-fen]`                | full FEN of the position on the board          |
+| `#board[data-side-to-move]`       | `white` / `black`                              |
+| `#board[data-ply]`                | number of moves played                         |
+| `#board[data-orientation]`        | `white` / `black`                              |
+| `#board[data-busy]`               | `true` while the engine is thinking            |
+| `#turn-indicator[data-thinking]`  | `true` / `false`                               |
+| `#status[data-game-over]`         | `true` once the game has a result              |
+| `#result[data-result]`            | `*`, `1-0`, `0-1` or `1/2-1/2`                 |
+| `#recorded-game[data-game-id]`    | id of the archived PGN, once it is written     |
+| `#new-game`, `#switch-sides`, `#resign` | the game controls                        |
+
+Rules for the driver: read the position from `data-fen` rather than from
+`aria-label` text (labels add `, in check` for a king in check), derive legal
+destinations from the `[data-target="true"]` squares the board highlights rather
+than duplicating move generation, and wait on `data-busy` / `data-ply` instead
+of sleeping. A finished game is archived permanently in `/history`, so the
+script refuses any host other than localhost unless `ALLOW_REMOTE=1` is set.
+
 ## Chess UI rules
 
 - Derive selectable destinations from `Chess.Rules.legal_moves/1`; do not duplicate move generation in the UI.

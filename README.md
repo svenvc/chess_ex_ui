@@ -119,6 +119,23 @@ tests cover PGN round trips, resignation results, chronological listing,
 corrupt-file handling and id validation; history tests cover stats, downloads
 and the replay controls.
 
+### Driving the page from a script
+
+`scripts/play_remote.mjs` plays a game through a real browser, clicking the
+board and reading its published state, so it exercises the same path a visitor
+takes. It needs Google Chrome and one small package, and it defaults to
+`http://localhost:4000`:
+
+```sh
+npm --prefix scripts install
+node scripts/play_remote.mjs            # plays White, resigns or gets mated
+node scripts/play_remote.mjs --headed   # watch it
+```
+
+It refuses any host other than localhost unless `ALLOW_REMOTE=1` is set, because
+a finished game is archived permanently in `/history`. The markup it depends on
+is pinned in [AGENTS.md](AGENTS.md#scripted-play-black-box-driver).
+
 See [TODO.md](TODO.md) for known first-pass limits and planned work.
 
 ## Assets and licensing

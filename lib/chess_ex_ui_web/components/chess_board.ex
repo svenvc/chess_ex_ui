@@ -5,11 +5,16 @@ defmodule ChessUIWeb.ChessBoard do
   The component is presentational. It sends a single `square_click` event with
   the square name and lets the LiveView decide what the click means. It derives
   the last-move highlights and the king in check from the game it is given.
+
+  The board also publishes machine-readable state for scripted drivers:
+  `#board[data-fen]`, `[data-side-to-move]`, `[data-ply]`, `[data-orientation]`
+  and `[data-busy]`. These attributes are a contract with
+  `scripts/play_remote.mjs`; keep them stable when changing the markup.
   """
 
   use ChessUIWeb, :html
 
-  alias Chess.{Board, Castling, Color, Game, Move, Piece, Position, Rules}
+  alias Chess.{Board, Castling, Color, FEN, Game, Move, Piece, Position, Rules}
   alias ChessUIWeb.ChessAssets
 
   attr :game, :any, required: true
@@ -55,6 +60,9 @@ defmodule ChessUIWeb.ChessBoard do
           aria-busy={to_string(@busy)}
           data-orientation={@orientation}
           data-busy={to_string(@busy)}
+          data-fen={FEN.to_fen(@game)}
+          data-side-to-move={@game.side_to_move}
+          data-ply={length(@game.moves)}
           class="chess-board grid aspect-square overflow-hidden rounded-lg shadow-xl ring-1 ring-black/10"
           style={"--board-image: url('#{ChessAssets.board_image()}'); grid-template-columns: repeat(8, minmax(0, 1fr)); grid-template-rows: repeat(8, minmax(0, 1fr));"}
         >

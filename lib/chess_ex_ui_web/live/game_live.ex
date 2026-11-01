@@ -493,6 +493,7 @@ defmodule ChessUIWeb.GameLive do
               id="turn-indicator"
               role="status"
               data-thinking={to_string(@thinking)}
+              data-side-to-move={@game.side_to_move}
               class={[
                 "inline-flex min-w-36 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium",
                 cond do
@@ -545,6 +546,7 @@ defmodule ChessUIWeb.GameLive do
               <p
                 id="status"
                 aria-live="polite"
+                data-game-over={to_string(game_over?(@game, @resigned_by))}
                 class="mt-1.5 text-base font-semibold leading-6 text-base-content"
               >
                 {status_text(@game, @player_color, @resigned_by)}
@@ -561,6 +563,7 @@ defmodule ChessUIWeb.GameLive do
               <div
                 :if={@recorded_id}
                 id="recorded-game"
+                data-game-id={@recorded_id}
                 class="mt-3 rounded-lg border border-success/30 bg-success/10 px-3 py-2"
               >
                 <p class="flex items-center gap-1.5 text-xs font-semibold text-success">
@@ -610,13 +613,18 @@ defmodule ChessUIWeb.GameLive do
                 </h2>
                 <span
                   id="result"
+                  data-result={result(@game, @resigned_by)}
                   class="rounded-full bg-base-200 px-2 py-0.5 font-mono text-[0.7rem] font-semibold text-base-content/70"
                 >
                   {result(@game, @resigned_by)}
                 </span>
               </div>
 
-              <div id="moves" class="mt-2 min-h-0 flex-1 overflow-y-auto pr-1">
+              <div
+                id="moves"
+                data-ply={length(@game.moves)}
+                class="mt-2 min-h-0 flex-1 overflow-y-auto pr-1"
+              >
                 <p
                   :if={@move_rows == []}
                   class="py-4 text-center text-sm text-base-content/40"
