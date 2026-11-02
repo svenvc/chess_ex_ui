@@ -179,9 +179,9 @@ defmodule ChessUI.SystemInfo do
   @doc """
   Formats a duration in seconds as a compact string.
 
-  Hours, minutes and seconds are joined with single spaces, and units whose
-  value is zero are omitted. A duration of zero therefore formats as an empty
-  string.
+  Days, hours, minutes and seconds are joined with single spaces in descending
+  order, and units whose value is zero are omitted. A duration of zero
+  therefore formats as an empty string.
 
   ## Examples
 
@@ -193,14 +193,20 @@ defmodule ChessUI.SystemInfo do
       "1m 30s"
       iex> ChessUI.SystemInfo.format_duration(3661)
       "1h 1m 1s"
+      iex> ChessUI.SystemInfo.format_duration(86_400)
+      "1d"
+      iex> ChessUI.SystemInfo.format_duration(90_061)
+      "1d 1h 1m 1s"
 
   """
   def format_duration(seconds) do
-    hours = div(seconds, 3600)
-    minutes = div(rem(seconds, 3600), 60)
+    days = div(seconds, 86_400)
+    hours = div(rem(seconds, 86_400), 3_600)
+    minutes = div(rem(seconds, 3_600), 60)
     seconds = rem(seconds, 60)
 
     [
+      {days, "d"},
       {hours, "h"},
       {minutes, "m"},
       {seconds, "s"}

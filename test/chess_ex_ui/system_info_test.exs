@@ -54,10 +54,13 @@ defmodule ChessUI.SystemInfoTest do
     assert SystemInfo.format_duration(90) == "1m 30s"
     assert SystemInfo.format_duration(3_600) == "1h"
     assert SystemInfo.format_duration(3_661) == "1h 1m 1s"
+    assert SystemInfo.format_duration(86_400) == "1d"
+    assert SystemInfo.format_duration(90_061) == "1d 1h 1m 1s"
+    assert SystemInfo.format_duration(172_800) == "2d"
   end
 
   test "uptime and memory are human readable" do
-    assert SystemInfo.uptime() =~ ~r/^(\d+h )?(\d+m )?(\d+s)?$/
+    assert SystemInfo.uptime() =~ ~r/^(\d+d )?(\d+h )?(\d+m )?(\d+s)?$/
     assert SystemInfo.memory() =~ ~r/^\d+ MB$/
   end
 end
