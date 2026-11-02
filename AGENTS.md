@@ -58,6 +58,22 @@ than duplicating move generation, and wait on `data-busy` / `data-ply` instead
 of sleeping. A finished game is archived permanently in `/history`, so the
 script refuses any host other than localhost unless `ALLOW_REMOTE=1` is set.
 
+Two modes: a self-contained demo game, and a session for playing externally
+(`--serve`, then `--state` / `--step e2e4` / `--close`). The session is needed
+because the game lives in one LiveView process, so it holds one browser tab and
+exposes it over `127.0.0.1` with a token in `tmp/play_session.json`. Never widen
+that listener beyond loopback.
+
+Against the deployed instance, name the host and lift the guard explicitly:
+
+```sh
+ALLOW_REMOTE=1 node scripts/play_remote.mjs --url https://chess.stfx.eu --serve
+```
+
+That game is archived in the public `/history` for everyone, so run it only as a
+deliberate one-off — not on a schedule, not in a loop, and not as part of `mix
+precommit` or any other routine check.
+
 ## Chess UI rules
 
 - Derive selectable destinations from `Chess.Rules.legal_moves/1`; do not duplicate move generation in the UI.

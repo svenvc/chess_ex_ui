@@ -6,7 +6,7 @@
 // `#square-*` buttons, reads the state attributes the board publishes and never
 // touches a private endpoint, a socket payload or the filesystem of the server.
 //
-//   node scripts/play_remote.mjs                  # against http://localhost:4000
+//   node scripts/play_remote.mjs                  # autonomous demo game
 //   BASE_URL=http://localhost:4001 node scripts/play_remote.mjs
 //   ALLOW_REMOTE=1 node scripts/play_remote.mjs --url https://chess.stfx.eu
 //
@@ -18,11 +18,26 @@
 // A finished game is archived permanently in /history, so any host other than
 // localhost is refused unless ALLOW_REMOTE=1 is set explicitly.
 //
-// The bot is a demonstration opponent, not a chess engine: it sees the legal
-// destinations the UI highlights, prefers captures, and otherwise develops. It
-// exists to prove the page is drivable, and it will lose.
+// ## Interactive session
+//
+// The autonomous game below plays a heuristic demo. To play move by move from
+// outside the process, start a session and talk to it:
+//
+//   node scripts/play_remote.mjs --serve          # background; prints the FEN
+//   node scripts/play_remote.mjs --state          # position + legal moves
+//   node scripts/play_remote.mjs --step e2e4      # play it, wait for the reply
+//   node scripts/play_remote.mjs --close          # end it, or --close --resign
+//
+// The session holds one browser tab, because the game lives in that LiveView
+// process. It listens on 127.0.0.1 only, on a random port, and requires the
+// token it writes to tmp/play_session.json.
 
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+import { createServer } from "node:http";
+import { randomBytes } from "node:crypto";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
 import process from "node:process";
 
 const require = createRequire(import.meta.url);
@@ -30,32 +45,47 @@ const require = createRequire(import.meta.url);
 const SQUARE_ID_PREFIX = "square-";
 const PIECE_VALUE = { pawn: 1, knight: 3, bishop: 3, rook: 5, queen: 9, king: 0 };
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0", "[::1]"]);
+const SESSION_FILE = fileURLToPath(new URL("../tmp/play_session.json", import.meta.url));
 
 // ---------------------------------------------------------------------------
 // Options
 // ---------------------------------------------------------------------------
 
 function usage() {
-  return `Usage: node scripts/play_remote.mjs [options]
+  return `Usage: node scripts/play_remote.mjs [mode] [options]
 
+Modes (default: play an autonomous demo game):
+  --serve              open a session and keep the browser alive in the
+                       background, listening on 127.0.0.1
+  --state              print the current position and every legal move
+  --step <move>        play one move (e2e4) and wait for the engine's reply
+  --close              end the session (add --resign to resign first)
+
+Options:
   --url <url>          page to drive (default: $BASE_URL or http://localhost:4000)
-  --max-moves <n>      resign after this many own moves (default: 200)
-  --timeout <ms>       per-wait timeout (default: 20000)
   --colour <c>         play white or black (default: white)
-  --no-archive         resign nothing: close the page instead of finishing
-                       (only useful to check that a game starts)
+  --max-moves <n>      autonomous mode: resign after this many own moves (200)
+  --timeout <ms>       per-wait timeout (default: 20000)
+  --ttl <minutes>      session mode: close after this long idle (default: 60)
+  --no-legal           --state: skip the legal move scan (faster)
+  --no-archive         autonomous mode: stop without a result, archive nothing
   --headed             show the browser window
   -h, --help           this message`;
 }
 
 function parseArgs(argv) {
   const opts = {
+    mode: "play",
     url: process.env.BASE_URL || "http://localhost:4000/",
     maxMoves: 200,
     timeout: 20_000,
+    ttlMinutes: 60,
     colour: "white",
     headed: false,
     archive: true,
+    legal: true,
+    resign: false,
+    move: null,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -67,6 +97,19 @@ function parseArgs(argv) {
     };
 
     switch (arg) {
+      case "--serve":
+        opts.mode = "serve";
+        break;
+      case "--state":
+        opts.mode = "state";
+        break;
+      case "--step":
+        opts.mode = "step";
+        opts.move = next();
+        break;
+      case "--close":
+        opts.mode = "close";
+        break;
       case "--url":
         opts.url = next();
         break;
@@ -76,12 +119,21 @@ function parseArgs(argv) {
       case "--timeout":
         opts.timeout = Number(next());
         break;
+      case "--ttl":
+        opts.ttlMinutes = Number(next());
+        break;
       case "--colour":
       case "--color":
         opts.colour = next().toLowerCase();
         break;
+      case "--no-legal":
+        opts.legal = false;
+        break;
       case "--no-archive":
         opts.archive = false;
+        break;
+      case "--resign":
+        opts.resign = true;
         break;
       case "--headed":
         opts.headed = true;
@@ -101,6 +153,20 @@ function parseArgs(argv) {
   }
 
   return opts;
+}
+
+function assertLocal(opts) {
+  const target = new globalThis.URL(opts.url);
+  const isLocal = LOCAL_HOSTS.has(target.hostname) || target.hostname.endsWith(".localhost");
+
+  if (!isLocal && process.env.ALLOW_REMOTE !== "1") {
+    throw new Error(
+      `refusing to drive ${target.origin}: a finished game is archived publicly.\n` +
+        "Set ALLOW_REMOTE=1 if that is really what you want."
+    );
+  }
+
+  return target;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +192,23 @@ async function loadPlaywright() {
     "could not load Playwright. Run `npm --prefix scripts install` first, " +
       "or set PLAYWRIGHT_MODULE to an installed playwright/playwright-core path."
   );
+}
+
+async function openBrowser(opts) {
+  const chromium = await loadPlaywright();
+  const browser = await chromium.launch({
+    channel: process.env.PLAYWRIGHT_CHANNEL || "chrome",
+    headless: !opts.headed,
+  });
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const problems = [];
+  page.on("pageerror", (error) => problems.push(`page error: ${error.message}`));
+  page.on("console", (message) => {
+    if (message.type() === "error") problems.push(`console error: ${message.text()}`);
+  });
+
+  return { browser, page, problems };
 }
 
 // ---------------------------------------------------------------------------
@@ -157,8 +240,7 @@ function parseFen(fen) {
 
 function pieceName(char) {
   return (
-    { p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king" }[char] ??
-    "unknown"
+    { p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king" }[char] ?? "unknown"
   );
 }
 
@@ -189,7 +271,13 @@ function readTargets(page) {
   );
 }
 
-function readMoves(page) {
+function readSans(page) {
+  return page.evaluate(() =>
+    [...document.querySelectorAll("#moves [data-ply]")].map((el) => el.textContent.trim())
+  );
+}
+
+function readMoveRows(page) {
   return page.evaluate(() =>
     [...document.querySelectorAll("#moves tr[id^='move-']")].map((row) =>
       row.innerText.replace(/\s+/g, " ").trim()
@@ -215,13 +303,20 @@ async function waitForOurTurn(page, opts) {
 
 // Confirms the round trip: `select/2` always marks the clicked square, even when
 // the piece has no legal destination, so this is the settle signal.
-async function selectSquare(page, square, opts) {
-  await page.click(`#${SQUARE_ID_PREFIX}${square}`, { timeout: opts.timeout });
-  await page.waitForFunction(
-    (target) => document.querySelector(`#square-${target}`)?.dataset.selected === "true",
-    square,
-    { timeout: opts.timeout }
-  );
+async function selectPiece(page, square, opts, currentSelected = null) {
+  if (currentSelected === square) return true;
+
+  try {
+    await page.click(`#${SQUARE_ID_PREFIX}${square}`, { timeout: opts.timeout });
+    await page.waitForFunction(
+      (target) => document.querySelector(`#square-${target}`)?.dataset.selected === "true",
+      square,
+      { timeout: opts.timeout }
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function waitForPly(page, ply, opts) {
@@ -233,7 +328,94 @@ async function waitForPly(page, ply, opts) {
 }
 
 // ---------------------------------------------------------------------------
-// Move selection
+// Legal moves
+// ---------------------------------------------------------------------------
+
+// Ask the page which destinations it highlights for each of our pieces. The UI
+// already derives this from Chess.Rules.legal_moves/1, so the driver never
+// duplicates move generation.
+async function legalMoves(page, state, colour, opts) {
+  const { pieces } = parseFen(state.fen);
+  const moves = {};
+  let selected = state.selected;
+
+  for (const [from, piece] of pieces) {
+    if (piece.color !== colour) continue;
+    if (!(await selectPiece(page, from, opts, selected))) continue;
+    selected = from;
+    moves[from] = await readTargets(page);
+  }
+
+  return moves;
+}
+
+function flatten(moves) {
+  return Object.entries(moves)
+    .flatMap(([from, tos]) => tos.map((to) => `${from}${to}`))
+    .sort();
+}
+
+function normaliseMove(raw) {
+  const cleaned = String(raw)
+    .toLowerCase()
+    .replace(/[^a-h1-8]/g, "");
+
+  if (!/^[a-h][1-8][a-h][1-8]$/.test(cleaned)) {
+    throw new Error(`expected a move like e2e4 or e2-e4, got ${JSON.stringify(raw)}`);
+  }
+
+  return { from: cleaned.slice(0, 2), to: cleaned.slice(2, 4) };
+}
+
+// ---------------------------------------------------------------------------
+// Snapshots
+// ---------------------------------------------------------------------------
+
+async function snapshot(page, opts, { withLegal = true } = {}) {
+  const state = await readState(page);
+  if (!state) throw new Error("the page has no #board");
+
+  const snap = {
+    fen: state.fen,
+    sideToMove: state.sideToMove,
+    ply: state.ply,
+    busy: state.busy,
+    thinking: state.thinking,
+    gameOver: state.gameOver,
+    result: state.result,
+    status: state.status,
+    gameId: state.gameId,
+    orientation: state.orientation,
+    sans: await readSans(page),
+  };
+
+  if (withLegal && !state.gameOver) {
+    const moves = await legalMoves(page, state, opts.colour, opts);
+    snap.legal = moves;
+    snap.legalCount = flatten(moves).length;
+  }
+
+  return snap;
+}
+
+function printSnapshot(snap, { legal = true } = {}) {
+  console.log(`fen:    ${snap.fen}`);
+  console.log(`side:   ${snap.sideToMove}   ply: ${snap.ply}   result: ${snap.result}`);
+
+  if (snap.status) console.log(`status: ${snap.status}`);
+  if (snap.sans?.length) console.log(`moves:  ${snap.sans.join(" ")}`);
+
+  if (legal && snap.legal) {
+    const groups = Object.entries(snap.legal).filter(([, tos]) => tos.length > 0);
+    const text = groups.map(([from, tos]) => `${from}:${tos.join(",")}`).join("  ");
+    console.log(`legal:  ${text || "(none)"}   (${snap.legalCount ?? 0} moves)`);
+  }
+
+  if (snap.gameId) console.log(`archived: ${snap.gameId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Move selection (autonomous demo)
 // ---------------------------------------------------------------------------
 
 function centreScore(square) {
@@ -261,12 +443,11 @@ async function chooseMove(page, state, colour, opts) {
   const { pieces } = parseFen(state.fen);
   const ours = [...pieces].filter(([, piece]) => piece.color === colour);
   let best = null;
+  let selected = state.selected;
 
   for (const [from, piece] of ours) {
-    if (state.selected !== from) {
-      await selectSquare(page, from, opts);
-      state.selected = from;
-    }
+    if (!(await selectPiece(page, from, opts, selected))) continue;
+    selected = from;
 
     for (const to of await readTargets(page)) {
       const capture = pieces.get(to) ?? null;
@@ -281,7 +462,283 @@ async function chooseMove(page, state, colour, opts) {
 }
 
 // ---------------------------------------------------------------------------
-// Game
+// One interactive move
+// ---------------------------------------------------------------------------
+
+async function playStep(page, opts, rawMove) {
+  const { from, to } = normaliseMove(rawMove);
+
+  const before = await readState(page);
+  if (!before) throw new Error("the page has no #board");
+  if (before.gameOver) throw new Error(`the game is over (${before.result}): ${before.status}`);
+
+  await waitForOurTurn(page, opts);
+
+  const turn = await readState(page);
+  if (turn.sideToMove !== opts.colour) {
+    throw new Error(`it is ${turn.sideToMove} to move, not ${opts.colour}`);
+  }
+
+  const moves = await legalMoves(page, turn, opts.colour, opts);
+  const selected = await readState(page);
+
+  if (!(moves[from] ?? []).includes(to)) {
+    return {
+      applied: false,
+      error: `${from}${to} is not a legal move`,
+      ...(await snapshot(page, opts, { withLegal: false })),
+      legal: moves,
+      legalCount: flatten(moves).length,
+    };
+  }
+
+  const sansBefore = await readSans(page);
+
+  if (!(await selectPiece(page, from, opts, selected.selected))) {
+    throw new Error(`could not select ${from}`);
+  }
+
+  await page.click(`#${SQUARE_ID_PREFIX}${to}`, { timeout: opts.timeout });
+  await waitForPly(page, turn.ply + 1, opts);
+
+  const sansAfterMine = await readSans(page);
+  const mine = sansAfterMine.slice(sansBefore.length)[0] ?? null;
+
+  let engineSan = null;
+  try {
+    await waitForPly(page, turn.ply + 2, opts);
+    const sansAfterEngine = await readSans(page);
+    engineSan = sansAfterEngine.slice(sansBefore.length)[1] ?? null;
+  } catch {
+    // The engine's reply may be the last move of the game, or the game may be
+    // over already; the snapshot below reports what actually happened.
+  }
+
+  const after = await snapshot(page, opts, { withLegal: true });
+
+  return { applied: true, from, to, mine, engineSan, ...after };
+}
+
+// ---------------------------------------------------------------------------
+// Session server
+// ---------------------------------------------------------------------------
+
+async function serve(opts) {
+  const target = assertLocal(opts);
+  const { browser, page, problems } = await openBrowser(opts);
+  const token = randomBytes(16).toString("hex");
+
+  const shutdown = async (exitCode = 0) => {
+    await rm(SESSION_FILE, { force: true });
+    await browser.close().catch(() => {});
+    process.exit(exitCode);
+  };
+
+  process.on("SIGINT", () => void shutdown(130));
+  process.on("SIGTERM", () => void shutdown(143));
+
+  await page.goto(target.href, { waitUntil: "domcontentloaded", timeout: opts.timeout });
+  await page.waitForSelector("#board", { timeout: opts.timeout });
+
+  if (opts.colour !== (await readState(page)).orientation) {
+    await page.click("#switch-sides", { timeout: opts.timeout });
+    await waitForPly(page, 1, opts).catch(() => {});
+  }
+
+  // Requests are handled one at a time; a move and a read must not interleave.
+  let queue = Promise.resolve();
+  const serialise = (task) => {
+    const run = queue.then(task, task);
+    queue = run.catch(() => {});
+    return run;
+  };
+
+  const server = createServer((req, res) => {
+    const reply = (status, body) => {
+      res.writeHead(status, { "content-type": "application/json" });
+      res.end(JSON.stringify(body));
+    };
+
+    if (req.headers["x-session-token"] !== token) {
+      reply(401, { error: "unauthorised" });
+      req.resume();
+      return;
+    }
+
+    const url = new globalThis.URL(req.url, "http://127.0.0.1");
+
+    if (req.method === "GET" && url.pathname === "/state") {
+      req.resume();
+      serialise(() => snapshot(page, opts, { withLegal: opts.legal }))
+        .then((snap) => reply(200, { ok: true, problems, ...snap }))
+        .catch((error) => reply(500, { ok: false, error: error.message }));
+      return;
+    }
+
+    if (req.method === "POST" && (url.pathname === "/step" || url.pathname === "/close")) {
+      let raw = "";
+      req.on("data", (chunk) => (raw += chunk));
+      req.on("end", () => {
+        let body = {};
+        try {
+          body = raw ? JSON.parse(raw) : {};
+        } catch {
+          reply(400, { ok: false, error: "body must be JSON" });
+          return;
+        }
+
+        if (url.pathname === "/step") {
+          serialise(async () => {
+            try {
+              if (body.move) {
+                return reply(200, { problems, ...(await playStep(page, opts, body.move)) });
+              }
+              return reply(200, { ok: true, problems, ...(await snapshot(page, opts)) });
+            } catch (error) {
+              return reply(400, { ok: false, error: error.message });
+            }
+          });
+          return;
+        }
+
+        serialise(async () => {
+          try {
+            if (body.resign !== false) await resignIfPlaying(page, opts);
+            const final = await snapshot(page, opts, { withLegal: false });
+            reply(200, { ok: true, problems, ...final, moves: await readMoveRows(page) });
+            setTimeout(() => void shutdown(0), 50);
+          } catch (error) {
+            reply(500, { ok: false, error: error.message });
+          }
+        });
+      });
+      return;
+    }
+
+    reply(404, { error: "not found" });
+    req.resume();
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+
+  await mkdir(path.dirname(SESSION_FILE), { recursive: true });
+  await writeFile(
+    SESSION_FILE,
+    JSON.stringify({ port, token, url: target.href, pid: process.pid, startedAt: new Date().toISOString() }, null, 2),
+    { mode: 0o600 }
+  );
+
+  console.log(`session: http://127.0.0.1:${port}  (state file: ${path.relative(process.cwd(), SESSION_FILE)})`);
+  console.log(`playing ${opts.colour} on ${target.origin}\n`);
+  printSnapshot(await snapshot(page, opts, { withLegal: true }));
+
+  const ttl = opts.ttlMinutes * 60_000;
+  if (ttl > 0) {
+    const timer = setTimeout(() => {
+      console.log(`\nsession idle for ${opts.ttlMinutes} minutes, closing.`);
+      void shutdown(0);
+    }, ttl);
+    timer.unref?.();
+  }
+}
+
+async function resignIfPlaying(page, opts) {
+  const state = await readState(page);
+  if (!state || state.gameOver) return;
+
+  await page.click("#resign", { timeout: opts.timeout });
+  await page.waitForFunction(
+    () => document.querySelector("#status")?.dataset.gameOver === "true",
+    null,
+    { timeout: opts.timeout }
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Session client
+// ---------------------------------------------------------------------------
+
+async function readSession() {
+  try {
+    return JSON.parse(await readFile(SESSION_FILE, "utf8"));
+  } catch {
+    throw new Error("no session found. Start one with `node scripts/play_remote.mjs --serve`.");
+  }
+}
+
+async function sessionRequest(session, method, pathname, body) {
+  const response = await fetch(`http://127.0.0.1:${session.port}${pathname}`, {
+    method,
+    headers: {
+      "x-session-token": session.token,
+      ...(body ? { "content-type": "application/json" } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(180_000),
+  });
+
+  const payload = await response.json().catch(() => ({ ok: false, error: "invalid response" }));
+  if (!response.ok || payload.ok === false) {
+    throw new Error(payload.error ?? `session returned ${response.status}`);
+  }
+
+  return payload;
+}
+
+async function client(opts) {
+  const session = await readSession();
+
+  if (opts.mode === "state") {
+    const snap = await sessionRequest(session, "GET", "/state");
+    printSnapshot(snap, { legal: opts.legal });
+    reportProblems(snap.problems);
+    return;
+  }
+
+  if (opts.mode === "step") {
+    const result = await sessionRequest(session, "POST", "/step", { move: opts.move });
+
+    if (result.applied === false) {
+      console.log(`illegal: ${result.error}`);
+      printSnapshot(result, { legal: true });
+      process.exitCode = 1;
+      return;
+    }
+
+    console.log(`you:    ${result.mine ?? `${result.from}${result.to}`}`);
+    console.log(`engine: ${result.engineSan ?? "(game over)"}`);
+    console.log("");
+    printSnapshot(result, { legal: true });
+    reportProblems(result.problems);
+    return;
+  }
+
+  // close
+  const result = await sessionRequest(session, "POST", "/close", { resign: opts.resign });
+  console.log(`result: ${result.result}   ${result.status}`);
+  console.log(`plies:  ${result.ply}`);
+  if (result.gameId) {
+    const base = new URL(session.url).origin;
+    console.log(`archived: ${result.gameId}`);
+    console.log(`replay:   ${base}/history/${result.gameId}`);
+    console.log(`pgn:      ${base}/history/${result.gameId}/download`);
+  } else {
+    console.log("not archived (the game had no result)");
+  }
+  reportProblems(result.problems);
+}
+
+function reportProblems(problems) {
+  if (!problems || problems.length === 0) return;
+
+  console.log("\npage problems:");
+  for (const problem of problems) console.log(`  - ${problem}`);
+  process.exitCode = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Game (autonomous demo)
 // ---------------------------------------------------------------------------
 
 async function play(page, opts) {
@@ -339,7 +796,11 @@ async function play(page, opts) {
     }
 
     const before = await readState(page);
-    if (before.selected !== move.from) await selectSquare(page, move.from, opts);
+    if (!(await selectPiece(page, move.from, opts, before.selected))) {
+      resignReason = `could not select ${move.from}`;
+      break;
+    }
+
     await page.click(`#${SQUARE_ID_PREFIX}${move.to}`, { timeout: opts.timeout });
     ownMoves++;
 
@@ -393,36 +854,12 @@ async function play(page, opts) {
     final = await readState(page);
   }
 
-  return { final, moves: await readMoves(page) };
+  return { final, moves: await readMoveRows(page) };
 }
 
-// ---------------------------------------------------------------------------
-
-async function main() {
-  const opts = parseArgs(process.argv.slice(2));
-  const target = new globalThis.URL(opts.url);
-  const isLocal = LOCAL_HOSTS.has(target.hostname) || target.hostname.endsWith(".localhost");
-
-  if (!isLocal && process.env.ALLOW_REMOTE !== "1") {
-    console.error(
-      `refusing to drive ${target.origin}: a finished game is archived publicly.\n` +
-        "Set ALLOW_REMOTE=1 if that is really what you want."
-    );
-    process.exit(2);
-  }
-
-  const chromium = await loadPlaywright();
-  const browser = await chromium.launch({
-    channel: process.env.PLAYWRIGHT_CHANNEL || "chrome",
-    headless: !opts.headed,
-  });
-
-  const problems = [];
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-  page.on("pageerror", (error) => problems.push(`page error: ${error.message}`));
-  page.on("console", (message) => {
-    if (message.type() === "error") problems.push(`console error: ${message.text()}`);
-  });
+async function autonomous(opts) {
+  const target = assertLocal(opts);
+  const { browser, page, problems } = await openBrowser(opts);
 
   try {
     await page.goto(target.href, { waitUntil: "domcontentloaded", timeout: opts.timeout });
@@ -450,15 +887,28 @@ async function main() {
       problems.push("a result was reached but no game record was published");
     }
 
-    if (problems.length > 0) {
-      console.log("\npage problems:");
-      for (const problem of problems) console.log(`  - ${problem}`);
-      process.exitCode = 1;
-    }
-
-    process.exitCode = process.exitCode ?? 0;
+    reportProblems(problems);
   } finally {
     await browser.close();
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+async function main() {
+  const opts = parseArgs(process.argv.slice(2));
+
+  switch (opts.mode) {
+    case "serve":
+      await serve(opts);
+      break;
+    case "state":
+    case "step":
+    case "close":
+      await client(opts);
+      break;
+    default:
+      await autonomous(opts);
   }
 }
 

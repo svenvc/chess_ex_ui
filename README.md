@@ -132,9 +132,31 @@ node scripts/play_remote.mjs            # plays White, resigns or gets mated
 node scripts/play_remote.mjs --headed   # watch it
 ```
 
+To play move by move from outside the process, keep a session alive and step it.
+The session holds the one browser tab the game lives in, binds `127.0.0.1` on a
+random port and writes a token to `tmp/play_session.json`:
+
+```sh
+node scripts/play_remote.mjs --serve        # start; prints the FEN + legal moves
+node scripts/play_remote.mjs --state        # position and every legal move
+node scripts/play_remote.mjs --step e2e4    # play it, wait for the engine
+node scripts/play_remote.mjs --close --resign
+```
+
+To drive the deployed instance instead of a local server, name the host and opt
+in explicitly:
+
+```sh
+ALLOW_REMOTE=1 node scripts/play_remote.mjs --url https://chess.stfx.eu --serve
+```
+
 It refuses any host other than localhost unless `ALLOW_REMOTE=1` is set, because
-a finished game is archived permanently in `/history`. The markup it depends on
-is pinned in [AGENTS.md](AGENTS.md#scripted-play-black-box-driver).
+a finished game is archived permanently in `/history` — a game played against
+the deployed instance shows up there for everyone. Treat it as a deliberate,
+one-off exercise rather than something to run on a schedule.
+
+The markup it depends on is pinned in
+[AGENTS.md](AGENTS.md#scripted-play-black-box-driver).
 
 See [TODO.md](TODO.md) for known first-pass limits and planned work.
 
