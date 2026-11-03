@@ -75,6 +75,83 @@ Current first-pass limits:
   starts a new game. Only completed games are persisted.
 - There is no clock or settings UI.
 
+## REST API
+
+An anonymous, textual API lets machines and AIs play against the same engine.
+It keeps in-progress games in memory and archives finished games in the same
+`/history` archive.
+
+```sh
+curl -i -X POST http://localhost:4000/api/games
+curl -i http://localhost:4000/api/games/{id}
+curl -i -X POST --data 'e4' http://localhost:4000/api/games/{id}/move
+curl -i -X POST http://localhost:4000/api/games/{id}/move
+```
+
+`POST /api/games` returns `201` with a `Location` header. The body of every
+successful game response is a FEN; `X-Chess-*` headers carry the side to move,
+the player's color, the result, the last move and the archive id. Moves may be
+SAN (`e4`, `Nf3`, `O-O`, `e8=Q`) or UCI (`e2e4`, `e7e8q`). The move is plain
+text in the body; no content type is required. An empty move body asks the
+engine to move; a body of `resign` resigns. JSON request bodies are not
+supported and are rejected with `415`.
+
+Errors are also plain text: unknown API paths, malformed bodies and unexpected
+failures do not return a Phoenix HTML page.
+
+The player is White by default; use `?color=black` to play Black. Games are
+anonymous, live in memory for an hour after the last request and are lost on
+restart. Creation, moves and reads are rate limited per address, and the number
+of games and concurrent engine searches is capped. `GET /api` prints the full
+description.
+
+### Behind a reverse proxy
+
+The API rate limiter keys on `conn.remote_ip`. Behind Caddy, enable the
+forwarded-address rewrite at boot:
+
+```sh
+CHESS_EX_UI_PROXY_REWRITE_ON=x_forwarded_for
+```
+
+The value is a comma-separated list of `Plug.RewriteOn` options:
+`x_forwarded_for`, `x_forwarded_proto`, `x_forwarded_host` and
+`x_forwarded_port`. Unset or empty leaves the connection untouched, which is the
+safe default. Only enable a rewrite when the proxy strips or overwrites the
+corresponding header; otherwise a client can spoof its address or scheme.
+
+Caddy at the edge ignores client-supplied `X-Forwarded-For` values and sets the
+header to the immediate client address, so the usual setup is:
+
+```caddyfile
+chess.stfx.eu {
+    reverse_proxy 127.0.0.1:4000
+}
+```
+
+and:
+
+```sh
+CHESS_EX_UI_PROXY_REWRITE_ON=x_forwarded_for
+```
+
+Add `x_forwarded_proto` (and optionally `x_forwarded_host`) if you also want
+`conn.scheme`/`conn.host` rewritten for the backend:
+
+```sh
+CHESS_EX_UI_PROXY_REWRITE_ON=x_forwarded_for,x_forwarded_proto,x_forwarded_host
+```
+
+If Caddy is itself behind a CDN, configure Caddy's global
+`servers { trusted_proxies ... }` option. `Plug.RewriteOn` takes the first
+(leftmost) `X-Forwarded-For` entry; if an upstream proxy passes a chain it did
+not sanitize, use a dedicated header instead, for example
+`header_up X-Client-IP {client_ip}` in Caddy and this advanced configuration:
+
+```elixir
+config :chess_ex_ui, proxy_rewrite_on: [{:remote_ip, "x-client-ip"}]
+```
+
 ## History and replay
 
 - `/history` lists completed games newest first and shows the visitor's record.
@@ -96,6 +173,16 @@ Current first-pass limits:
 | `lib/chess_ex_ui_web/live/history_live.ex` | `/history`: chronological hall of fame and win/draw stats |
 | `lib/chess_ex_ui_web/live/game_view_live.ex` | `/history/:id`: read-only PGN replay |
 | `lib/chess_ex_ui_web/controllers/game_download_controller.ex` | `/history/:id/download`: PGN file download |
+| `lib/chess_ex_ui/api.ex` | REST API context: create, move, engine turn, resignation and archiving |
+| `lib/chess_ex_ui/api/game_store.ex` | In-memory games, expiry, capacity and engine reservations |
+| `lib/chess_ex_ui/api/move.ex` | SAN and UCI parsing for API move bodies |
+| `lib/chess_ex_ui_web/controllers/api/game_controller.ex` | `/api/games` endpoints |
+| `lib/chess_ex_ui_web/controllers/api/docs_controller.ex` | `GET /api`: plain-text API description |
+| `lib/chess_ex_ui_web/controllers/api/error_controller.ex` | Plain-text 404/405 for API routes |
+| `lib/chess_ex_ui_web/controllers/api/error_text.ex` | Plain-text error view for the API |
+| `lib/chess_ex_ui_web/plugs/api_format.ex` | Marks `/api` requests for plain-text errors |
+| `lib/chess_ex_ui_web/plugs/parsers.ex` | Answers API parse errors as plain text |
+| `lib/chess_ex_ui_web/plugs/api_rate_limit.ex` | Per-address rate limiting for the API |
 | `lib/chess_ex_ui_web/game_format.ex` | Shared formatting for history dates, durations and result badges |
 | `lib/chess_ex_ui/engine.ex` | Engine strength and book options; test seam for the engine module |
 | `lib/chess_ex_ui_web/components/chess_board.ex` | Presentational board, squares, coordinates and highlights |
@@ -117,7 +204,8 @@ legal targets, legal move application, the asynchronous engine reply and thinkin
 state, illegal clicks, switching sides, starting over and resigning. Archive
 tests cover PGN round trips, resignation results, chronological listing,
 corrupt-file handling and id validation; history tests cover stats, downloads
-and the replay controls.
+and the replay controls. API tests cover game creation, SAN/UCI moves, the turn
+guard, engine moves, status codes, rate limiting, expiry and archiving.
 
 ### Driving the page from a script
 

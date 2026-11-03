@@ -11,8 +11,9 @@ defmodule ChessUI.Application do
       ChessUIWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:chess_ex_ui, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: ChessUI.PubSub},
-      # Start a worker by calling: ChessUI.Worker.start_link(arg)
-      # {ChessUI.Worker, arg},
+      {Task.Supervisor, name: ChessUI.Api.TaskSupervisor},
+      ChessUI.Api.RateLimit,
+      ChessUI.Api.GameStore,
       # Start to serve requests, typically the last entry
       ChessUIWeb.Endpoint
     ]

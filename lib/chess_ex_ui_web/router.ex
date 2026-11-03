@@ -11,7 +11,7 @@ defmodule ChessUIWeb.Router do
   end
 
   pipeline :api do
-    plug :accepts, ["json"]
+    plug ChessUIWeb.Plugs.ApiRateLimit
   end
 
   scope "/", ChessUIWeb do
@@ -24,10 +24,20 @@ defmodule ChessUIWeb.Router do
     get "/history/:id/download", GameDownloadController, :download
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", ChessUIWeb do
-  #   pipe_through :api
-  # end
+  scope "/api", ChessUIWeb.Api do
+    pipe_through :api
+
+    get "/", DocsController, :index
+    post "/games", GameController, :create
+    get "/games/:id", GameController, :show
+    post "/games/:id/move", GameController, :move
+
+    match :*, "/", ErrorController, :method_not_allowed
+    match :*, "/games", ErrorController, :method_not_allowed
+    match :*, "/games/:id", ErrorController, :method_not_allowed
+    match :*, "/games/:id/move", ErrorController, :method_not_allowed
+    match :*, "/*path", ErrorController, :not_found
+  end
 
   # Enable LiveDashboard in development
   if Application.compile_env(:chess_ex_ui, :dev_routes) do

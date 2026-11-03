@@ -40,6 +40,11 @@ Working notes for the ChessEx UI. See `README.md` for how to run it and
 - [x] Add a chronological `/history` hall of fame with win/draw statistics.
 - [x] Add a read-only `/history/:id` replay with move navigation.
 - [x] Add PGN download from the history, replay and game pages.
+- [x] Add an anonymous, textual REST API for machines and AIs: create a game,
+      read its FEN, play a SAN/UCI move and let the engine answer.
+- [x] Rate limit API game creation, moves and reads; cap games, idle time and
+      concurrent engine searches.
+- [x] Archive finished API games in the same PGN history, labelled `API`.
 
 ## Next
 
@@ -90,6 +95,17 @@ Working notes for the ChessEx UI. See `README.md` for how to run it and
 - [ ] Add a test that plays a complete game to checkmate.
 - [ ] Add a test for playing as Black after the engine opens.
 - [ ] Add CI that runs `mix precommit` and `mix assets.build`.
+
+### REST API
+
+- [ ] Decide whether API games should survive a restart; today they are
+      in-memory only, like LiveView games.
+- [ ] Add an idempotency key to game creation so a retried `POST /api/games`
+      does not create a second game.
+- [ ] Add a `DELETE /api/games/:id` abandon operation that frees a slot without
+      writing a record.
+- [ ] Add CORS only if browser-based clients need to call the API.
+- [ ] Add a small script that plays an API game end to end for smoke testing.
 
 ## First-pass constraints
 

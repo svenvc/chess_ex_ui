@@ -40,6 +40,10 @@ defmodule ChessUI.GameArchive do
     * `:ended_at` - when the game finished
     * `:engine` - the engine name, `"ChessEx"` by default
     * `:engine_options` - a description of the engine configuration
+    * `:player_name` - the player's PGN name, `"Visitor"` by default
+    * `:engine_name` - the engine's PGN name, `"ChessEx"` by default
+    * `:event` - the PGN `Event` header, `"Chess Ex Online Game"` by default
+    * `:site` - the PGN `Site` header, `"https://chess.stfx.eu"` by default
 
   The optional `:dir` overrides the configured games directory. Returns
   `{:ok, id}` or `{:error, reason}`. A game that is neither over nor resigned
@@ -61,12 +65,12 @@ defmodule ChessUI.GameArchive do
       temporary_path = path <> ".tmp"
 
       headers = %{
-        "Event" => "Chess Ex Online Game",
-        "Site" => "https://chess.stfx.eu",
+        "Event" => Map.get(meta, :event) || "Chess Ex Online Game",
+        "Site" => Map.get(meta, :site) || "https://chess.stfx.eu",
         "Date" => Calendar.strftime(started_at, "%Y.%m.%d"),
         "Round" => "-",
-        "White" => player_name(player_color, :white),
-        "Black" => player_name(player_color, :black),
+        "White" => player_name(player_color, :white, meta),
+        "Black" => player_name(player_color, :black, meta),
         "Result" => outcome.result,
         "UTCDate" => Calendar.strftime(started_at, "%Y.%m.%d"),
         "UTCTime" => Calendar.strftime(started_at, "%H:%M:%S"),
@@ -259,10 +263,10 @@ defmodule ChessUI.GameArchive do
 
   defp truncate(_other), do: DateTime.utc_now() |> DateTime.truncate(:second)
 
-  defp player_name(:white, :white), do: "Visitor"
-  defp player_name(:white, :black), do: "ChessEx"
-  defp player_name(:black, :white), do: "ChessEx"
-  defp player_name(:black, :black), do: "Visitor"
+  defp player_name(:white, :white, meta), do: Map.get(meta, :player_name, "Visitor")
+  defp player_name(:white, :black, meta), do: Map.get(meta, :engine_name, "ChessEx")
+  defp player_name(:black, :white, meta), do: Map.get(meta, :engine_name, "ChessEx")
+  defp player_name(:black, :black, meta), do: Map.get(meta, :player_name, "Visitor")
 
   defp result_for(:white), do: "1-0"
   defp result_for(:black), do: "0-1"

@@ -21,12 +21,33 @@ config :chess_ex_ui,
 # runtime by `ChessUI.GameArchive` (default `var/games`) and can be overridden
 # with CHESS_EX_UI_GAMES_DIR; see config/runtime.exs.
 
+# The anonymous REST API keeps in-progress games in memory, so its resources
+# are bounded. See `ChessUI.Api.Config`.
+config :chess_ex_ui, :api,
+  max_games: 1_000,
+  max_games_per_ip: 20,
+  game_ttl_seconds: 3_600,
+  max_game_age_seconds: 86_400,
+  engine_timeout_ms: 10_000,
+  max_engine_concurrency: 4,
+  rate_limit: %{create: {10, 60}, move: {60, 60}, read: {120, 60}}
+
+# Rewrite the connection from X-Forwarded-* headers only when the deployment
+# trusts its reverse proxy. In production the list comes from
+# CHESS_EX_UI_PROXY_REWRITE_ON; see config/runtime.exs and
+# ChessUIWeb.Plugs.ProxyRewrite.
+config :chess_ex_ui, proxy_rewrite_on: []
+
 # Configures the endpoint
 config :chess_ex_ui, ChessUIWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
-    formats: [html: ChessUIWeb.ErrorHTML, json: ChessUIWeb.ErrorJSON],
+    formats: [
+      html: ChessUIWeb.ErrorHTML,
+      json: ChessUIWeb.ErrorJSON,
+      text: ChessUIWeb.Api.ErrorText
+    ],
     layout: false
   ],
   pubsub_server: ChessUI.PubSub,

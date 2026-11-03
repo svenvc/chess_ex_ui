@@ -24,6 +24,36 @@ if games_dir = System.get_env("CHESS_EX_UI_GAMES_DIR") do
   config :chess_ex_ui, games_dir: Path.expand(games_dir)
 end
 
+# Behind a reverse proxy, rewrite the connection from the X-Forwarded-* headers
+# only when the proxy strips or overwrites them. The value is a comma-separated
+# list of Plug.RewriteOn options:
+#
+#   x_forwarded_for, x_forwarded_proto, x_forwarded_host, x_forwarded_port
+#
+# For example, a Caddy edge needs only the client address for the API rate
+# limiter:
+#
+#   CHESS_EX_UI_PROXY_REWRITE_ON=x_forwarded_for
+#
+# Unset or empty leaves the connection untouched.
+if proxy_rewrite_on = System.get_env("CHESS_EX_UI_PROXY_REWRITE_ON") do
+  rewrites =
+    proxy_rewrite_on
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.map(&String.downcase/1)
+    |> Enum.map(fn
+      "x_forwarded_for" -> :x_forwarded_for
+      "x_forwarded_proto" -> :x_forwarded_proto
+      "x_forwarded_host" -> :x_forwarded_host
+      "x_forwarded_port" -> :x_forwarded_port
+      other -> raise "unknown CHESS_EX_UI_PROXY_REWRITE_ON value: #{inspect(other)}"
+    end)
+
+  config :chess_ex_ui, proxy_rewrite_on: rewrites
+end
+
 if config_env() == :prod do
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you

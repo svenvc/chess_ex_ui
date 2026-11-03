@@ -87,6 +87,42 @@ precommit` or any other routine check.
 - The engine plays a 4-ply `Chess.Search` with the opening book, configured in
   `config/config.exs` through `ChessUI.Engine`.
 
+## REST API
+
+- `/api` is anonymous and in-memory. `ChessUI.Api.GameStore` owns the games;
+  keep the full `Chess.Game` because a FEN alone cannot represent repetition
+  history.
+- `POST /api/games` creates a game; `GET /api/games/:id` returns the FEN;
+  `POST /api/games/:id/move` plays a SAN/UCI move or, with an empty body, the
+  engine's move. `GET /api` is the plain-text description.
+- Enforce the turn guard: a move body is only for `player_color`, an empty body
+  only for the other side. This makes retries safe.
+- Illegal or ambiguous moves are `422`, a wrong turn or a finished game `409`,
+  an unknown or expired game `404`, rate limits `429`, capacity or engine
+  failure `503`, an engine timeout `504`. Do not use `5xx` for client mistakes.
+- Keep engine searches out of `GameStore`: reserve with `begin_engine/1`,
+  search through `ChessUI.Api.TaskSupervisor`, and finish with
+  `finish_engine/2`.
+- Archive only finished games, once, through `ChessUI.GameArchive` with
+  `player_name: "API"` and `event: "Chess Ex API Game"`. Never archive
+  abandoned or expired games.
+- Bound resources: per-address creation/move/read rate limits, per-address and
+  global game caps, idle TTL, hard maximum age and engine concurrency. The
+  values live in `ChessUI.Api.Config`.
+- API tests are `async: false`; reset `GameStore` and `RateLimit` in setup and
+  restore any `Application.put_env` changes.
+- API errors are `text/plain`, never Phoenix HTML. `ChessUIWeb.Plugs.ApiFormat`
+  selects the `text` error view, `ChessUIWeb.Plugs.Parsers` answers malformed
+  bodies and query strings, and `ChessUIWeb.Api.ErrorController` catches
+  unknown paths and wrong methods. Keep new API routes before those catch-alls.
+- The API is plain text only. JSON request bodies are rejected with `415`;
+  do not add JSON input or JSON responses.
+- The rate limiter keys on `conn.remote_ip`. Forwarded-header rewriting is
+  opt-in at runtime through `CHESS_EX_UI_PROXY_REWRITE_ON` and
+  `ChessUIWeb.Plugs.ProxyRewrite`; never trust forwarded headers unless the
+  proxy strips or overwrites them. Caddy at the edge sets `X-Forwarded-For` to
+  the immediate client and ignores client-supplied values by default.
+
 ## Game records
 
 - Record only games with a result: checkmate, stalemate, the automatic draw rules and resignation. New game, switching sides, closing the page and engine failures must not write a record.
