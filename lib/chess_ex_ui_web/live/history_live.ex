@@ -119,16 +119,17 @@ defmodule ChessUIWeb.HistoryLive do
                   </span>
                 </div>
 
-                <p class="text-sm font-semibold text-base-content">
-                  {game.white}
-                  <span class="font-normal text-base-content/40">vs</span>
-                  {game.black}
-                </p>
-
-                <p class="text-xs text-base-content/55">
-                  {String.capitalize(game.termination)} · {game.ply_count} plies · {duration(
-                    game.duration_seconds
-                  )}
+                <p>
+                  <span class="text-sm font-semibold text-base-content">
+                    {game.white}
+                    <span class="font-normal text-base-content/40">vs</span>
+                    {game.black}
+                  </span>
+                  <span class="ml-4 text-xs text-base-content/55">
+                    {String.capitalize(game.termination)} · {game.ply_count} plies · {duration(
+                      game.duration_seconds
+                    )}
+                  </span>
                 </p>
               </div>
 
